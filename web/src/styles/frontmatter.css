@@ -1,0 +1,89 @@
+/* Frontmatter "Properties" block — a collapsible key/value table above the doc. */
+
+.fm-block {
+  margin: 0 0 48px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg-soft);
+}
+.fm-header {
+  padding: 8px 14px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--code-bg);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.fm-header:hover {
+  background: var(--hover);
+}
+.fm-title {
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+.fm-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+  width: 12px;
+  height: 12px;
+  transition: transform 0.12s ease;
+}
+.fm-block.collapsed .fm-chevron {
+  transform: rotate(-90deg); /* down (open) → right (collapsed) */
+}
+.fm-block.collapsed .fm-table {
+  display: none;
+}
+.fm-block.collapsed {
+  background: var(--code-bg);
+}
+.fm-block.collapsed .fm-header {
+  border-bottom: 0;
+}
+.fm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  table-layout: auto;
+}
+.fm-table tr {
+  border-bottom: 1px solid var(--border);
+}
+.fm-table tr:last-child {
+  border-bottom: 0;
+}
+.fm-table td {
+  padding: 10px 14px;
+  vertical-align: middle;
+}
+.fm-table td.fm-key {
+  white-space: nowrap;
+  width: 1%;
+  color: var(--text);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: var(--bg-soft);
+  border-right: 1px solid var(--border);
+}
+.fm-table td.fm-val {
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.fm-table td.fm-val:empty::after {
+  content: "—";
+  color: var(--text-faint);
+}

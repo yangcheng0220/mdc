@@ -1,0 +1,316 @@
+/* The settings surface: a centered modal over a dimmed backdrop. It floats over
+   the app (which stays put, just dimmed + non-interactive) rather than taking
+   over the layout — so it reads as "step out, adjust, step back" and the nav
+   hotkeys stay irrelevant while it's open. Backdrop pattern mirrors the ⌘K
+   modal. */
+
+.settings-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+.settings-modal {
+  /* Grows with the viewport but capped — roomy enough for the embedded comment
+     dashboard's thread list, while staying a contained dialog (not full-bleed). */
+  width: min(1100px, 90vw);
+  height: min(760px, 88vh);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.settings-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  /* Left padding aligns the title with the rail item text below
+     (nav padding 10px + item padding 12px = 22px). */
+  padding: 14px 26px 14px 22px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.settings-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+.settings-close {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 6px;
+  display: inline-flex;
+}
+.settings-close:hover {
+  background: var(--wash);
+  color: var(--text);
+}
+
+/* The body below the heading: a left section rail + the content panel. */
+.settings-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* Section rail — a vertical nav. Reuses the chrome tab vocabulary (active =
+   surface, hover = the sidebar-rows wash) but laid out as a left list. */
+.settings-nav {
+  width: 220px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  padding: 14px 10px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.settings-nav-item {
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1.4;
+}
+.settings-nav-item:hover:not(.active) {
+  background: var(--wash);
+  color: var(--text);
+}
+/* Active = the same selected fill + bolder text the active file row uses, not a
+   white card (which reads heavy in a vertical list). */
+.settings-nav-item.active {
+  background: var(--selected);
+  color: var(--text);
+}
+
+.settings-content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 26px 32px;
+}
+/* Comments section: a fixed title/sub head, then the embedded inbox fills the
+   rest of the panel with its own scroll (no double padding, no nested scroll). */
+.settings-content.is-dashboard {
+  overflow: hidden;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.settings-content.is-dashboard .dashboard-body {
+  flex: 1;
+  min-height: 0;
+  /* 32px sides — shared by the heading + the thread list (the heading adds no
+     horizontal padding of its own, so the title lines up with both the list
+     below and the placeholder sections' titles). */
+  padding: 0 32px 22px;
+  overflow-y: auto;
+}
+/* The embedded inbox heading: section title + sub, then the segmented filter
+   and the thread list below. */
+.settings-content.is-dashboard .dashboard-heading-embedded {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 26px 0 14px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 1;
+}
+.settings-content.is-dashboard .dashboard-embedded-titles .settings-section-title {
+  margin: 0 0 2px;
+}
+.settings-content.is-dashboard .dashboard-embedded-titles .settings-section-sub {
+  margin: 0;
+}
+.settings-section-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+.settings-section-sub {
+  color: var(--text-muted);
+  margin: 0 0 20px;
+}
+/* Theme selector — a segmented Light/Dark/System control. Token-based fills so
+   it reads correctly in both themes (not a hardcoded black wash). */
+.theme-toggle {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-soft);
+}
+.theme-toggle-option {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.theme-toggle-option:hover:not(.active) {
+  background: var(--hover);
+  color: var(--text);
+}
+.theme-toggle-option.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+/* Workspace — the guided root-switch command builder. Token-based, borrowing the
+   code-chip + warning-tint vocabulary already used elsewhere so it reads in both
+   themes. */
+.workspace-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.workspace-field-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+.workspace-path {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 13px;
+  color: var(--text-muted);
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 8px 10px;
+  word-break: break-all;
+}
+.workspace-input {
+  appearance: none;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-mid);
+  border-radius: 7px;
+  padding: 8px 10px;
+}
+.workspace-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.workspace-command-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.workspace-command {
+  flex: 1;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 8px 10px;
+  word-break: break-all;
+  display: flex;
+  align-items: center;
+}
+.workspace-command-empty {
+  color: var(--text-faint);
+}
+.workspace-copy {
+  appearance: none;
+  flex: 0 0 auto;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg-soft);
+  border: 1px solid var(--border-mid);
+  border-radius: 7px;
+  padding: 0 16px;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+.workspace-copy:hover:not(:disabled) {
+  background: var(--hover);
+}
+.workspace-copy:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Shortcuts cheatsheet — grouped label → key rows. Token-based so it reads in
+   both themes; the key chip borrows the segmented-control surface vocabulary. */
+.shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.shortcuts-group-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+  margin: 0 0 8px;
+}
+.shortcuts-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+}
+.shortcuts-row:last-child {
+  border-bottom: 0;
+}
+.shortcuts-label {
+  color: var(--text);
+  font-size: 14px;
+}
+.shortcuts-key {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 9px;
+  white-space: nowrap;
+}

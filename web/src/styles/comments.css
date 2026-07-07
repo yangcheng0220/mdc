@@ -1,0 +1,813 @@
+/* Comment highlights (painted into the doc) + the margin cards. */
+
+/* ── Highlights in the document ──
+   Highlights are painted as positioned rects in an overlay layer over the doc —
+   the doc DOM is never wrapped/mutated, so a highlight is always continuous and
+   can't corrupt the page. One .hl-rect per line-box of a comment's range; rects
+   sharing a comment id read as one highlight. */
+.hl-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none; /* never block text selection in the doc */
+  z-index: 1;
+}
+.hl-rect {
+  position: absolute;
+  pointer-events: auto; /* but the rects themselves are clickable */
+  cursor: pointer;
+  /* Underline drawn at the rect's bottom edge. Rects butt together across a line
+     and stack across lines, so this reads as one continuous underline.
+     One comment color regardless of author — authorship shows on the card. */
+  border-bottom: 2px solid var(--comment);
+  transition: background 0.15s;
+}
+/* .hover (not :hover) — set on every line-rect of a comment together, so the
+   whole highlight tints as one when hovering any of its lines. */
+.hl-rect.hover {
+  background: color-mix(in srgb, var(--comment) 14%, transparent);
+}
+.hl-rect.flash {
+  animation: hl-flash 1.2s ease-out;
+}
+@keyframes hl-flash {
+  0% {
+    background: color-mix(in srgb, var(--comment) 45%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+/* Preview highlight while a comment is being composed (before submit) — a filled
+   band rather than a bare underline, so the pending selection reads clearly. */
+.hl-rect.pending-preview {
+  border-bottom-color: var(--comment);
+  background: color-mix(in srgb, var(--comment) 18%, transparent);
+}
+
+/* Floating "Comment" toolbar shown at the end of a text selection. */
+/* A high-contrast floating chip — uses the --toast-* tokens (NOT --text/--surface,
+   which double-invert in dark and flip it to light-on-light). */
+.sel-toolbar {
+  position: absolute;
+  background: var(--toast-bg);
+  color: var(--toast-text);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  z-index: 200;
+  display: flex;
+  overflow: hidden; /* clip the button's hover fill to the rounded corners */
+}
+.sel-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: transparent;
+  color: var(--toast-text);
+  border: 0;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.sel-toolbar button:hover {
+  /* Lighten the dark chip on hover — works in both themes (the chip is dark in
+     both, so a white-alpha wash is correct regardless). */
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* ── Sidebar header — the Open/Resolved filter, pinned to the top so it stays
+   visible while the comment list scrolls with the page. Right padding matches
+   the cards' right inset so the funnel lines up with the card column. ── */
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  box-sizing: border-box;
+  padding: 8px 20px 8px 12px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 7;
+  background: var(--bg);
+}
+.sidebar-filter-wrap {
+  position: relative;
+  display: inline-flex;
+  margin-left: auto;
+}
+.sidebar-close-btn {
+  background: transparent;
+  border: 0;
+  padding: 5px;
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition:
+    color 0.12s,
+    background 0.12s;
+}
+.sidebar-close-btn:hover {
+  background: var(--wash-strong);
+  color: var(--text);
+}
+.sidebar-filter-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--text-muted);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    color 0.1s,
+    background 0.1s,
+    border-color 0.1s;
+}
+.sidebar-filter-btn:hover {
+  color: var(--text);
+  background: var(--wash);
+}
+.sidebar-filter-btn.is-open {
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--border-mid);
+}
+.sidebar-filter-btn.is-filtered {
+  color: var(--text);
+}
+.sidebar-filter-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-mid);
+  border-radius: 7px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  padding: 4px;
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sidebar-filter-menu button {
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: 5px;
+  padding: 6px 9px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.sidebar-filter-menu button:hover:not([disabled]) {
+  background: var(--wash);
+}
+.sidebar-filter-menu button[disabled] {
+  color: var(--text-faint);
+  cursor: default;
+  opacity: 0.6;
+}
+.sidebar-filter-menu button.active {
+  font-weight: 700;
+}
+.sidebar-filter-check {
+  width: 12px;
+  flex: none;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+/* ── The positioned card column. Cards are absolutely placed within it by
+   measured anchor Y; its min-height is set so the last card isn't clipped. ── */
+.comment-list {
+  flex: 1;
+  position: relative;
+  box-sizing: border-box;
+}
+
+/* ── Comment cards ── */
+.comment {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  box-shadow:
+    0 1px 2px var(--wash),
+    0 3px 10px var(--wash);
+  transition:
+    box-shadow 0.15s,
+    border-color 0.15s;
+  overflow: hidden;
+}
+.comment:hover {
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.06),
+    0 6px 18px rgba(0, 0, 0, 0.08);
+  border-color: var(--border-mid);
+}
+/* Flash when its highlight is clicked — a solid comment-colored outline ring,
+   held briefly then removed (toggled by the .flash class). */
+.comment.flash {
+  outline: 2px solid var(--comment);
+  outline-offset: 0;
+}
+
+.comment .hdr {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 13px 0;
+}
+.comment .hdr .author {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  text-transform: lowercase;
+}
+.comment .hdr .time {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.comment .hdr .time::before {
+  content: "·";
+  margin-right: 5px;
+  color: var(--text-faint);
+}
+.comment .body {
+  padding: 4px 13px 10px;
+  padding-left: 42px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.comment .body.deleted {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* Pending (being-composed) comment — dashed border, inline composer. */
+.comment.pending {
+  border-style: dashed;
+}
+.new-form-inline {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 13px 10px;
+}
+.new-form-inline textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  resize: none;
+  min-height: 72px;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: var(--bg);
+  color: var(--text);
+}
+.new-form-inline textarea::placeholder {
+  color: var(--text-faint);
+}
+.new-form-inline textarea:focus {
+  border-color: var(--comment);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--comment) 12%, transparent);
+  outline: none;
+  background: var(--surface);
+}
+.new-form-inline .btns {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+.new-form-inline .btns button {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 11px;
+  cursor: pointer;
+  transition:
+    border-color 0.1s,
+    color 0.1s,
+    background 0.1s;
+}
+.new-form-inline .btns button:hover {
+  border-color: var(--border-mid);
+  color: var(--text);
+  background: var(--hover);
+}
+
+/* Composer submit (Comment / Save) — the primary affirmative action, styled like
+   the app's other primary actions (Move / Hand off): a solid-dark fill against
+   the outline Cancel. One rule covers all three composers (new / reply / edit). */
+.new-form-inline .btns button[type="submit"],
+.reply-form .btns button[type="submit"],
+.edit-form .btns button[type="submit"] {
+  color: var(--surface);
+  background: var(--text);
+  border-color: var(--text);
+}
+.new-form-inline .btns button[type="submit"]:hover,
+.reply-form .btns button[type="submit"]:hover,
+.edit-form .btns button[type="submit"]:hover {
+  opacity: 0.85;
+  color: var(--surface);
+  background: var(--text);
+  border-color: var(--text);
+}
+
+/* ── Replies — a dashed divider sets them off from the comment body; each reply
+   gets a left-border line for the nested look. ── */
+.comment .replies {
+  margin-top: 8px;
+  padding: 8px 13px 4px;
+  border-top: 1px dashed var(--hover);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.comment .replies:empty {
+  display: none;
+}
+.reply {
+  padding: 6px 0 0 10px;
+  margin-left: 6px;
+  border-left: 2px solid var(--hover);
+}
+.reply .hdr {
+  padding: 0;
+}
+.reply .body {
+  padding: 4px 0 4px 29px;
+  font-size: 13px;
+}
+
+/* Fold/expand affordance for long threads — a quiet link. */
+.replies-toggle {
+  align-self: flex-start;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  padding: 2px 0;
+  margin-left: 6px;
+  cursor: pointer;
+}
+.replies-toggle:hover {
+  text-decoration: underline;
+}
+
+/* Resolve checkmark — hover-revealed in the card header, pushed to the right. */
+.comment .hdr .resolve-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  flex: none;
+  margin-left: auto;
+  color: var(--text-faint);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.12s,
+    color 0.1s,
+    border-color 0.1s,
+    background 0.1s;
+}
+.comment:hover .hdr .resolve-btn,
+.comment .hdr .resolve-btn:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.comment .hdr .resolve-btn:hover {
+  color: var(--text);
+  border-color: var(--border-mid);
+  background: var(--hover);
+}
+/* Same quiet-outline chip recipe as the dashboard's .dash-status. */
+.comment-orphan-tag {
+  box-sizing: border-box;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-mid);
+  color: var(--text-faint);
+  background: transparent;
+  white-space: nowrap;
+}
+
+/* Reply affordance + composer. The Reply button sits in a bordered footer; the
+   form replaces it when active (same composer family as the new-comment one). */
+.reply-row {
+  padding: 8px 13px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-soft);
+}
+.reply-btn {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 11px;
+  cursor: pointer;
+  transition:
+    border-color 0.1s,
+    color 0.1s,
+    background 0.1s;
+}
+.reply-btn:hover {
+  border-color: var(--border-mid);
+  color: var(--text);
+  background: var(--hover);
+}
+.reply-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 13px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-soft);
+}
+.reply-form textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  resize: none;
+  min-height: 56px;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: var(--bg);
+  color: var(--text);
+}
+.reply-form textarea::placeholder {
+  color: var(--text-faint);
+}
+.reply-form textarea:focus {
+  border-color: var(--comment);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--comment) 12%, transparent);
+  outline: none;
+  background: var(--surface);
+}
+.reply-form .btns {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+.reply-form .btns button {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 11px;
+  cursor: pointer;
+  transition:
+    border-color 0.1s,
+    color 0.1s,
+    background 0.1s;
+}
+.reply-form .btns button:hover {
+  border-color: var(--border-mid);
+  color: var(--text);
+  background: var(--hover);
+}
+
+/* Per-comment ⋯ menu (Edit / Delete) — hover-revealed, mirrors resolve-btn. */
+.comment-menu-wrap {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+.reply .hdr .comment-menu-wrap {
+  margin-left: auto;
+}
+.comment-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: var(--text-faint);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.12s,
+    color 0.1s,
+    border-color 0.1s,
+    background 0.1s;
+}
+.comment:hover .comment-menu-btn,
+.comment-menu-btn:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.comment-menu-btn:hover {
+  color: var(--text);
+  border-color: var(--border-mid);
+  background: var(--wash);
+}
+.comment-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-mid);
+  border-radius: 7px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  padding: 4px;
+  min-width: 110px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.comment-menu button {
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: 5px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--text);
+  cursor: pointer;
+}
+.comment-menu button:hover {
+  background: var(--wash);
+}
+.comment-menu button[data-act="delete"]:hover {
+  background: var(--danger-tint);
+  color: var(--danger);
+}
+
+/* Inline edit composer — same family as the reply/new composer. */
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 13px 10px;
+  padding-left: 42px;
+}
+.reply .edit-form {
+  padding-left: 0;
+}
+.edit-form textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  resize: none;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: var(--bg);
+  color: var(--text);
+}
+.edit-form textarea:focus {
+  border-color: var(--comment);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--comment) 12%, transparent);
+  outline: none;
+  background: var(--surface);
+}
+.edit-form .btns {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  padding-top: 2px;
+}
+.edit-form .btns button {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 11px;
+  cursor: pointer;
+  transition:
+    border-color 0.1s,
+    color 0.1s,
+    background 0.1s;
+}
+.edit-form .btns button:hover {
+  border-color: var(--border-mid);
+  color: var(--text);
+  background: var(--hover);
+}
+
+/* Delete confirm — blocking modal over a dimmed page. */
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  z-index: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: cmdk-fade-in 0.12s ease;
+}
+.confirm-panel {
+  width: 340px;
+  max-width: 90vw;
+  background: var(--surface);
+  border-radius: 10px;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.35),
+    0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 18px 18px 14px;
+}
+.confirm-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.confirm-msg {
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-bottom: 16px;
+}
+.confirm-btns {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.confirm-btns button {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition:
+    border-color 0.1s,
+    color 0.1s,
+    background 0.1s;
+}
+.confirm-btns button.secondary {
+  background: none;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+.confirm-btns button.secondary:hover {
+  border-color: var(--border-mid);
+  color: var(--text);
+  background: var(--hover);
+}
+.confirm-btns button.danger {
+  background: var(--danger);
+  color: var(--surface);
+  border: 1px solid var(--danger);
+}
+.confirm-btns button.danger:hover {
+  background: var(--danger-hover);
+  border-color: var(--danger-hover);
+}
+/* Affirmative non-destructive action (e.g. Move) — the solid-dark button used
+   for primary actions elsewhere (Hand off, comment submit), not accent blue. */
+.confirm-btns button.primary {
+  background: var(--text);
+  color: var(--surface);
+  border: 1px solid var(--text);
+}
+.confirm-btns button.primary:hover {
+  opacity: 0.85;
+}
+
+/* Resolved view — flat list of resolved threads. */
+.resolved-item {
+  padding: 8px 9px;
+  border-radius: 5px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  opacity: 0.85;
+}
+.resolved-quote {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-style: italic;
+  border-left: 2px solid var(--border);
+  padding-left: 7px;
+  margin-bottom: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.resolved-body {
+  font-size: 12.5px;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.5;
+}
+.resolved-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+}
+.resolved-by {
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+.resolved-unbtn {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 2px 9px;
+  cursor: pointer;
+  flex: none;
+  transition:
+    border-color 0.1s,
+    color 0.1s,
+    background 0.1s;
+}
+.resolved-unbtn:hover {
+  border-color: var(--border-mid);
+  color: var(--text);
+  background: var(--hover);
+}
+
+/* ── Avatars ── */
+.avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9.5px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.avatar.user {
+  background: var(--bg-soft);
+  color: var(--text-muted);
+  border: 1px solid var(--border-mid);
+  box-sizing: border-box;
+}
+.avatar.agent {
+  background: var(--comment-tint);
+  color: var(--comment);
+}

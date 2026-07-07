@@ -1,0 +1,717 @@
+/* App chrome: file nav header/tree/footer, the open-tabs strip, doc-toolbar
+   controls, breadcrumb, and the ⌘K jump modal. */
+
+/* ── Nav header — brand (left) + collapse toggle (right). Same height as the
+   doc toolbar so the top band lines up across the three columns. ── */
+.nav-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 44px;
+  box-sizing: border-box;
+  padding: 8px 10px 8px 14px;
+  flex-shrink: 0;
+}
+.nav-header .brand {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  user-select: none;
+  -webkit-user-select: none;
+}
+.panel-hdr-toggle {
+  background: transparent;
+  border: 0;
+  padding: 5px;
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--text-faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    color 0.12s,
+    background 0.12s;
+  flex-shrink: 0;
+}
+.panel-hdr-toggle:hover {
+  background: var(--wash-strong);
+  color: var(--text);
+}
+
+/* The scrolling region between the (fixed) header/tabs and footer. */
+.nav-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── File tree ──
+   Rows are rounded + inset: a 6px horizontal gutter on the container floats the
+   rounded fill inside the panel, and every row shares an 8px inner left padding
+   so top-level file/folder/tab rows align to one left edge (the depth indent is
+   added ON TOP via an inline padding-left). Hover/active are neutral grey washes
+   — no blue, no left-border indicator. */
+.nav-tree {
+  padding: 10px 6px 24px;
+  flex: 1;
+  overflow-y: auto;
+}
+.nav-dir-hdr {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  line-height: 1.5;
+}
+.nav-dir-hdr:hover {
+  background: var(--wash);
+}
+.nav-dir-icon {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  display: inline-flex;
+}
+.nav-dir-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nav-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  color: var(--text);
+  text-decoration: none;
+  line-height: 1.5;
+}
+.nav-row:hover {
+  background: var(--wash);
+}
+.nav-row.active {
+  background: var(--selected);
+  font-weight: 600;
+}
+.nav-file-icon {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  display: inline-flex;
+}
+.nav-path {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+/* ── Pane switcher — Files / Outline / (+) segmented control above the active
+   pane. Segments read as app chrome; the disabled "+" is a coming-soon marker. ── */
+.pane-switcher {
+  display: flex;
+  gap: 2px;
+  padding: 6px 10px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+.pane-tab {
+  flex: 1;
+  background: transparent;
+  /* Transparent border reserved so the active state's border doesn't shift layout. */
+  border: 1px solid transparent;
+  padding: 4px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+  cursor: pointer;
+  line-height: 1.4;
+  transition:
+    color 0.12s,
+    background 0.12s;
+}
+.pane-tab:hover:not(:disabled):not(.active) {
+  background: var(--wash); /* match the sidebar rows' hover wash, not the heavier --hover */
+  color: var(--text-muted);
+}
+/* Active = an elevated surface card. In light the white fill pops against the
+   nav bg on its own (no border — the original look). In dark --surface sits
+   close to --nav-bg, so a border defines the card edge there only. */
+.pane-tab.active {
+  background: var(--surface);
+  color: var(--text);
+}
+:root[data-theme="dark"] .pane-tab.active {
+  border-color: var(--border);
+}
+/* The "+" is a root-create ACTION, not a pane tab — set apart at the right edge,
+   square, so it doesn't read as a third segment. */
+.pane-new-btn {
+  flex: 0 0 auto;
+  width: 26px;
+  background: transparent;
+  border: 0;
+  margin-left: 4px;
+  border-radius: 5px;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition:
+    color 0.12s,
+    background 0.12s;
+}
+.pane-new-btn:hover {
+  background: var(--wash); /* match the pane tabs + sidebar rows */
+  color: var(--text);
+}
+
+/* ── Inline create input — dropped into the tree at the create target. ── */
+/* Inline create — a borderless in-row field, not a boxed input: the row reads
+   like a filename being typed in place. A faint fill + 1px neutral ring marks it
+   as a transient "creating" row, distinct from the (solid-grey) active row. */
+.nav-row.inline-create {
+  background: var(--wash);
+  box-shadow: inset 0 0 0 1px var(--border-mid);
+}
+.nav-row.inline-create:hover {
+  background: var(--wash); /* hold the creating-row look; don't pick up the hover wash */
+}
+.inline-create-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+}
+
+/* ── Context menu — floating, anchored at the right-click point. ── */
+.context-menu {
+  position: fixed;
+  z-index: 100;
+  min-width: 140px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border-mid);
+  border-radius: 7px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.context-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  padding: 6px 10px;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+.context-menu-item:hover {
+  background: var(--hover);
+}
+.context-menu-item.danger {
+  color: var(--danger);
+}
+.context-menu-item.danger:hover {
+  background: var(--danger-tint);
+}
+
+/* ── Files pane — capped tab strip atop the scrolling file tree, filling the
+   pane so the tree scrolls below the (max-40vh) tabs. ── */
+.files-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ── Outline tree — the active doc's headings; borrows the nav row look. ── */
+.outline-tree {
+  padding: 10px 6px 24px; /* 6px gutter matches the tree/tabs so the sidebar reads as one */
+  flex: 1;
+  overflow-y: auto;
+}
+.outline-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  color: var(--text);
+  line-height: 1.5;
+  cursor: pointer;
+}
+.outline-row:hover {
+  background: var(--wash);
+}
+.outline-row.inert {
+  cursor: default;
+  color: var(--text-muted);
+}
+.outline-row.inert:hover {
+  background: transparent;
+}
+.outline-caret {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  border-radius: 4px;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: transform 0.12s;
+}
+.outline-caret:hover {
+  background: var(--wash-strong);
+  color: var(--text);
+}
+/* Caret points down when expanded (children shown), right when folded. */
+.outline-caret {
+  transform: rotate(90deg);
+}
+.outline-caret.folded {
+  transform: rotate(0deg);
+}
+.outline-caret-spacer {
+  flex-shrink: 0;
+  width: 16px;
+}
+.outline-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.outline-empty {
+  padding: 18px 16px;
+  color: var(--text-faint);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+/* ── Open-tabs strip — above the file tree; mirrors the nav-row look. ── */
+.tab-strip {
+  flex-shrink: 0;
+  max-height: 40vh;
+  overflow-y: auto;
+  border-bottom: 1px solid var(--border);
+  padding: 4px 6px; /* 6px gutter matches the tree so tab + tree rows align */
+}
+.tab-row {
+  position: relative; /* anchors the drag-reorder drop-indicator pseudo-element */
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 5px;
+  color: var(--text);
+  line-height: 1.5;
+  cursor: pointer;
+}
+.tab-row:hover {
+  background: var(--wash);
+}
+.tab-row.active {
+  background: var(--selected);
+  font-weight: 600;
+}
+
+/* ── Drag-to-reorder (reusable pattern; the file tree can match the feel) ──
+   The dragged row dims; a thin insertion line marks where it'll drop. */
+.tab-row.dragging {
+  opacity: 0.4;
+}
+.tab-row.drop-before::before,
+.tab-row.drop-after::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--text-muted);
+  pointer-events: none;
+}
+.tab-row.drop-before::before {
+  top: -1px;
+}
+.tab-row.drop-after::after {
+  bottom: -1px;
+}
+
+/* ── Tree drag-to-MOVE — shares the dragged-row dim, but the drop is structural
+   (drop INTO a folder → alphabetical), so it highlights the target folder row
+   instead of drawing an insertion line. The highlight stays in the sidebar's
+   de-blued grey scale: one step heavier than an active row (0.08 → 0.12), so the
+   drop target reads as "more emphasized than selected" without any accent blue. ── */
+.nav-row.dragging,
+.nav-dir-hdr.dragging {
+  opacity: 0.4;
+}
+.nav-dir-hdr.drop-into {
+  background: var(--wash-strong);
+}
+/* Dropping onto empty tree space below the rows → move to root. A neutral ring
+   (not blue) marks the whole tree as the target. */
+.nav-tree.drop-into-root {
+  box-shadow: inset 0 0 0 1px var(--border);
+  border-radius: 6px;
+}
+.tab-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+/* Unread dot — background activity (doc/sidecar change) since this tab was last
+   focused. Neutral grey, not the accent — the sidebar carries no blue. */
+.tab-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+.tab-close {
+  flex-shrink: 0;
+  background: transparent;
+  border: 0;
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  visibility: hidden;
+}
+.tab-row:hover .tab-close {
+  visibility: visible;
+}
+.tab-close:hover {
+  background: var(--border-mid);
+  color: var(--text);
+}
+
+/* ── Nav footer — root path + entry into the review dashboard, pinned to the
+   bottom of the panel. ── */
+.nav-footer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+}
+.nav-footer:hover {
+  background: var(--wash);
+  color: var(--text);
+}
+.nav-footer .icon {
+  flex-shrink: 0;
+  color: var(--text-faint);
+  display: inline-flex;
+}
+.nav-footer-root {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl; /* keep the meaningful tail (folder name) visible */
+  text-align: left;
+}
+
+/* ── Doc toolbar controls ── */
+.breadcrumb-row {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0; /* let the breadcrumb ellipsis, don't push siblings off */
+}
+.breadcrumb {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.breadcrumb-sep {
+  color: var(--text-faint);
+  margin: 0 4px;
+}
+.breadcrumb-current {
+  color: var(--text);
+  font-weight: 600;
+}
+/* "Trusted App" indicator beside the breadcrumb when the active HTML file runs
+   as a trusted mini app. An accent chip — same vocabulary as other status pills. */
+.trusted-app-pill {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--accent);
+  background: var(--accent-tint);
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+.toolbar-toggle {
+  background: transparent;
+  border: 0;
+  padding: 5px;
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--text-faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    color 0.12s,
+    background 0.12s;
+  flex-shrink: 0;
+}
+.toolbar-toggle:hover {
+  background: var(--wash-strong);
+  color: var(--text);
+}
+
+/* View/edit segmented control, left of the breadcrumb. */
+.mode-toggle {
+  display: inline-flex;
+  gap: 1px;
+  background: var(--code-bg);
+  border-radius: 7px;
+  padding: 2px;
+  flex-shrink: 0;
+}
+.mode-toggle button {
+  background: transparent;
+  border: 0;
+  padding: 4px 9px;
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--text-faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    color 0.12s,
+    background 0.12s;
+}
+.mode-toggle button:hover {
+  color: var(--text);
+}
+.mode-toggle button.is-active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.toolbar-comments {
+  background: transparent;
+  border: 0;
+  padding: 4px 10px 4px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--text-faint);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  transition:
+    color 0.12s,
+    background 0.12s;
+  flex-shrink: 0;
+}
+.toolbar-comments:hover {
+  background: var(--wash-strong);
+  color: var(--text);
+}
+.toolbar-comments.is-open {
+  color: var(--text);
+}
+.toolbar-comments .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  flex-shrink: 0;
+  transition: background 0.12s;
+}
+.toolbar-comments.is-open .dot {
+  background: var(--comment);
+}
+
+/* ── ⌘K file-jump modal ── */
+.cmdk-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--scrim);
+  z-index: 500;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+  animation: cmdk-fade-in 0.12s ease;
+}
+@keyframes cmdk-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.cmdk-panel {
+  width: 600px;
+  max-width: 92vw;
+  background: var(--surface);
+  border-radius: 10px;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.35),
+    0 4px 12px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+}
+.cmdk-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--bg-soft);
+}
+.cmdk-input-row svg {
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+.cmdk-input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  font-size: 15px;
+  font-family: inherit;
+  background: transparent;
+  color: var(--text);
+}
+.cmdk-input::placeholder {
+  color: var(--text-faint);
+}
+.cmdk-hint-badge {
+  font-size: 10px;
+  background: var(--bg-soft);
+  color: var(--text-muted);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.cmdk-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+.cmdk-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+}
+.cmdk-item:hover,
+.cmdk-item.selected {
+  background: var(--hover);
+}
+.cmdk-item-name {
+  flex: 1;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cmdk-item-dir {
+  color: var(--text-faint);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.cmdk-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 13px;
+}
+.cmdk-footer {
+  border-top: 1px solid var(--bg-soft);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-size: 12px;
+  color: var(--text-faint);
+  line-height: 1.25;
+}
+.cmdk-footer span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.cmdk-footer kbd {
+  background: var(--bg-soft);
+  border: 1px solid var(--border-mid);
+  border-radius: 5px;
+  padding: 1px 6px;
+  min-width: 16px;
+  text-align: center;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--text-muted);
+}

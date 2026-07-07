@@ -1,0 +1,363 @@
+/* The rendered document surface + markdown typography. This is the layout the
+   comment cards measure against, so these values (font, size, line-height,
+   padding, max-width) are the finalized doc geometry. */
+
+.doc {
+  background: var(--surface);
+  padding: 24px 64px 56px;
+  line-height: 1.65;
+  font-size: 16px;
+  position: relative;
+}
+
+.doc p {
+  text-wrap: pretty;
+  margin: 0 0 14px;
+}
+.doc h1 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  line-height: 1.2;
+}
+.doc h2 {
+  margin: 32px 0 12px;
+  line-height: 1.25;
+}
+.doc h3 {
+  margin: 24px 0 10px;
+  line-height: 1.3;
+}
+.doc h4 {
+  margin: 20px 0 8px;
+}
+.doc ul,
+.doc ol {
+  margin: 0 0 14px;
+  padding-left: 24px;
+}
+.doc li {
+  margin-bottom: 4px;
+}
+.doc li > p {
+  margin: 0 0 6px;
+}
+.doc li > p:last-child {
+  margin-bottom: 0;
+}
+/* GFM task list alignment. marked emits `<input type=checkbox> text` without a
+   task-list marker class. Suppress the list marker, pull the item into the
+   marker gutter, then position the checkbox there and pad the item by one gutter
+   so wrapped lines hang under the text column at every depth. */
+.doc li.task-list-item {
+  list-style: none;
+  margin-left: -24px;
+  padding-left: 24px;
+  position: relative;
+}
+.doc li.task-list-item > ul {
+  margin-left: 0;
+}
+.doc li.task-list-item > input[type="checkbox"] {
+  position: absolute;
+  left: 0;
+  top: 0.45em;
+  margin: 0;
+}
+/* A checked item reads as done: strike its text and mute it. The checkbox
+   keeps its own decoration (line-through on the <li> would otherwise score
+   through the box too). */
+.doc li.task-list-item-checked {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+.doc li.task-list-item-checked input[type="checkbox"] {
+  text-decoration: none;
+}
+/* Authoring notes: block-level <!-- ... --> rendered visibly (mdc is a review
+   tool, so notes show, styled clearly as non-content). pre-wrap keeps the
+   note's own line breaks. */
+.doc .md-note {
+  margin: 0 0 14px;
+  padding: 8px 12px;
+  border: 1px dashed var(--border-mid);
+  border-radius: 6px;
+  background: var(--bg-soft);
+  color: var(--text-muted);
+  font-size: 13px;
+  white-space: pre-wrap;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+.doc blockquote {
+  margin: 0 0 14px;
+  padding-left: 14px;
+  border-left: 3px solid var(--border);
+  color: var(--text-muted);
+}
+
+/* Plain markdown links use the app accent (incl. the visited state) so they
+   read as one link style with wikilinks, instead of the un-themed browser
+   default that clashes with the palette. text-decoration (not border-bottom):
+   the browser paints it through inline children — over a code chip's
+   background — so a link wrapping inline code keeps one continuous underline
+   instead of exposing border stubs at the chip's rounded corners. The color
+   derives from the theme accent so it tracks dark mode. */
+.doc a,
+.doc a:visited {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.doc a:hover {
+  text-decoration-color: var(--accent);
+}
+
+/* Code: inline + block. Syntax highlighting (hljs) lands in the code step. */
+.doc pre {
+  background: var(--bg);
+  padding: 14px 16px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 13px;
+  border: 1px solid var(--code-bg-2);
+}
+.doc code {
+  background: var(--code-bg);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 0.92em;
+}
+.doc pre code {
+  background: none;
+  padding: 0;
+}
+/* Neutralize the highlight.js theme's own padding/background on code blocks so
+   the .doc pre container owns the spacing. */
+.doc pre code.hljs {
+  background: none;
+  padding: 0;
+}
+
+/* Headings get a scroll offset so #section jumps don't hide under sticky chrome. */
+.doc h1,
+.doc h2,
+.doc h3,
+.doc h4,
+.doc h5,
+.doc h6 {
+  scroll-margin-top: 56px;
+}
+
+/* Content tables are wrapped in .table-wrap for horizontal overflow. Scoping to
+   .table-wrap (not a bare `.doc table`) keeps these rules off the frontmatter
+   Properties table, which has its own styling. */
+.doc .table-wrap {
+  overflow-x: auto;
+  margin: 16px 0;
+  max-width: 100%;
+}
+.doc .table-wrap > table {
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: 1.5;
+  min-width: 100%;
+}
+.doc .table-wrap > table th,
+.doc .table-wrap > table td {
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+.doc .table-wrap > table th {
+  background: var(--bg);
+  font-weight: 600;
+}
+.doc .table-wrap > table tr:nth-child(even) td {
+  background: var(--bg-soft);
+}
+.doc .table-wrap > table code {
+  background: var(--code-bg);
+}
+
+/* Doc states (empty / loading / error). */
+.doc-placeholder {
+  padding: 120px 48px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 15px;
+}
+.doc-placeholder.doc-error {
+  color: var(--broken);
+}
+.doc-error {
+  color: var(--broken);
+}
+
+/* Narrower viewports: tighten the doc padding. */
+@media (max-width: 960px) {
+  .doc {
+    padding: 40px 32px;
+  }
+}
+
+/* ── Edit mode: raw-markdown editor ──
+   CodeMirror grows to its content (scroller is overflow:visible) so the PAGE
+   scrolls like the rendered doc — no inner scrollbar. */
+.editor {
+  background: var(--surface);
+  position: relative;
+}
+.editor-cm {
+  background: var(--surface);
+  color: var(--text);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.editor-cm .cm-content {
+  /* Fill the viewport minus the 44px toolbar AND the doc-shell's 1px bottom
+     border — otherwise the editor content is exactly 1px too tall for the space
+     inside the bordered shell, giving a short doc a 1px phantom scroll in edit
+     mode. (dvh tracks the dynamic viewport; the 45px = 44px toolbar + 1px border.) */
+  min-height: calc(100dvh - 45px);
+  padding: 24px 64px 56px 14px;
+  caret-color: var(--text);
+  tab-size: 4;
+}
+.editor-cm .cm-gutters {
+  padding-left: 36px;
+}
+.editor-cm .cm-comment-gutter {
+  min-width: 14px;
+}
+/* Passive gutter dot — indicates a line carries a comment; not a click target
+   (the underlined quote is). */
+.editor-cm .cm-comment-marker {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 3px;
+  border-radius: 50%;
+  background: var(--comment);
+  box-shadow: 0 0 0 2px var(--comment-tint);
+}
+/* The anchored-quote underline in edit-mode text — the edit-mode analog of the
+   view-mode highlight (.hl-rect): the comment-colored 2px underline at rest, with
+   a momentary background flash on click. An underline (not a background fill) so
+   it never collides with the editor's blue selection background. */
+.editor-cm .cm-comment-underline {
+  border-bottom: 2px solid var(--comment);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+/* .hover (not :hover) — set by the editor's pointer handler on every span of a
+   comment together, so a multi-line quote tints as one; same recipe and same
+   group behavior as the view-mode highlight (.hl-rect.hover). */
+.editor-cm .cm-comment-underline.hover {
+  background: color-mix(in srgb, var(--comment) 14%, transparent);
+}
+.editor-cm .cm-comment-underline.flash {
+  animation: edit-underline-flash 1.2s ease-out;
+}
+@keyframes edit-underline-flash {
+  0% {
+    background: color-mix(in srgb, var(--comment) 45%, transparent);
+  }
+  100% {
+    background: transparent;
+  }
+}
+.editor-cm .cm-line {
+  padding: 0;
+}
+/* Save status sits inline in the toolbar, just after the filename breadcrumb. */
+.toolbar-savestate {
+  font-size: 11px;
+  color: var(--text-faint);
+  background: var(--bg-soft);
+  padding: 2px 8px;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+.toolbar-savestate[data-state="error"] {
+  color: var(--danger);
+}
+.toolbar-savestate[data-state="conflict"] {
+  color: var(--warning-text);
+}
+
+/* Conflict flow: the banner reuses the doc-banner look; the merge view swaps in
+   for the editor while reviewing (side-by-side, theirs left / yours right). */
+.editor-merge-heads {
+  display: flex;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--border);
+}
+.editor-merge-heads span {
+  flex: 1;
+  padding: 8px 24px;
+}
+.editor-merge-heads span + span {
+  border-left: 1px solid var(--border);
+}
+.editor-merge-view .cm-mergeView {
+  background: var(--surface);
+}
+/* The per-chunk "take theirs" control between the panes — a custom-rendered
+   button (straight arrow, neutral hover); the package positions it. */
+.editor-merge-view .cm-merge-revert {
+  width: 34px;
+}
+.editor-merge-view .merge-take-btn {
+  /* Inset from the gutter edges so it never touches the panes' chunk bars
+     (the package's base rule stretches buttons to width:100%). */
+  width: calc(100% - 10px);
+  left: 5px;
+  /* Re-add the panes' content padding (see --merge-pad-top) + 1px to center
+     the 22px button on the ~24px first line of the chunk. */
+  margin-top: calc(var(--merge-pad-top) + 1px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  color: var(--text-faint);
+  background: var(--surface);
+  border: 1px solid var(--border-mid, var(--border));
+  border-radius: 6px;
+  transition:
+    color 0.12s,
+    background 0.12s;
+}
+.editor-merge-view .merge-take-btn:hover {
+  color: var(--text);
+  background: var(--bg-soft);
+}
+.editor-merge-view .cm-editor {
+  font-size: 14px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  line-height: 1.7;
+}
+.editor-merge-view {
+  /* One knob for the panes' top padding AND the revert-button offset below —
+     the button's `top` comes from CM document coordinates, which exclude
+     content padding, so the gutter must add it back or every button rides
+     exactly this much too high. */
+  --merge-pad-top: 16px;
+}
+.editor-merge-view .cm-content {
+  padding: var(--merge-pad-top) 24px 48px;
+}
+.editor-status {
+  padding: 24px 64px;
+  color: var(--text-faint);
+  font-size: 15px;
+}
+.editor-status.editor-error {
+  color: var(--danger);
+}

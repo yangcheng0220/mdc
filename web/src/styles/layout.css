@@ -1,0 +1,208 @@
+/* The 3-column app frame: file nav | doc | comment sidebar. A CSS grid whose
+   column track widths animate when a side panel collapses. */
+
+/* One selection color everywhere — the editor paints CodeMirror's selection
+   layer with the same token, so view and edit mode select in the same blue
+   (without this, view mode falls back to the browser's default selection). */
+::selection {
+  background: var(--selection);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: var(--nav-w) minmax(0, 1fr) var(--sidebar-w);
+  min-height: 100dvh;
+  transition: grid-template-columns 0.15s ease;
+  position: relative;
+}
+.layout.nav-collapsed {
+  grid-template-columns: 0 minmax(0, 1fr) var(--sidebar-w);
+}
+.layout.sidebar-collapsed {
+  grid-template-columns: var(--nav-w) minmax(0, 1fr) 0;
+}
+.layout.nav-collapsed.sidebar-collapsed {
+  grid-template-columns: 0 minmax(0, 1fr) 0;
+}
+
+/* No file open: lock the layout to the viewport so the centered empty prompts
+   sit in a stable, non-scrolling full-height frame. */
+.app-empty,
+.app-empty .layout {
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
+/* Iframe-backed files own their own height + internal scroll, so the outer page
+   must not also scroll. Lock the layout to the viewport and drop the doc-shell's
+   min-height:100vh (which would otherwise push past the screen and add an outer
+   scrollbar on top of the frame's). */
+.iframe-active,
+.iframe-active .layout {
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+.iframe-active .doc-area {
+  min-height: 0;
+  height: 100%;
+}
+.iframe-active .doc-shell {
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.iframe-active .doc-area-inner {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Left: file nav — a viewport-height sticky panel. The file tree scrolls
+   inside it; a footer (dashboard entry) pins to the panel's bottom and never
+   moves with the document. Because the panel is fixed to the viewport, its
+   background always fills the screen and the footer stays put on long docs. */
+.nav {
+  background: var(--nav-bg);
+  border-right: 1px solid var(--border);
+  font-size: 13px;
+  max-height: 100dvh;
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.nav-inner {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+.layout.nav-collapsed .nav {
+  border-right: 0;
+}
+
+/* Center: document. The doc-area backdrop is cream (inherits --bg); the white
+   "page" is the .doc-shell card floating in it, with the markdown rendering on
+   the .doc surface inside. */
+.doc-area {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 100%;
+}
+.doc-shell {
+  margin: 0 24px;
+  min-height: 100%;
+  /* border-box so the 1px bottom border is absorbed within the inherited height
+     instead of adding to it (otherwise a short doc gets a phantom 1px scroll). */
+  box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-radius: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  display: block;
+  overflow: visible;
+  position: relative;
+}
+/* Doc toolbar — breadcrumb + panel toggles + handoff (populated in the chrome
+   step). Same height as the nav/sidebar headers so the zones line up; sticky
+   to the top of the white page while the doc scrolls. */
+.doc-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 24px;
+  height: 44px;
+  box-sizing: border-box;
+  position: sticky;
+  top: 0;
+  z-index: 7;
+  background: var(--surface);
+}
+/* Doc-changed banner — sticks just under the 44px toolbar; an opt-in "the file
+   moved on disk" prompt, never an auto-rerender. */
+.doc-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 24px;
+  box-sizing: border-box;
+  position: sticky;
+  top: 44px;
+  z-index: 6;
+  background: var(--warning-tint);
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid var(--warning);
+  font-size: 13px;
+}
+.doc-banner-icon {
+  color: var(--warning-text);
+  flex-shrink: 0;
+}
+.doc-banner-text {
+  flex: 1;
+}
+.doc-banner-action {
+  background: transparent;
+  border: 0;
+  padding: 4px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--warning-text);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  flex-shrink: 0;
+  transition: background 0.12s;
+}
+.doc-banner-action:hover {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+}
+.doc-banner-dismiss {
+  background: transparent;
+  border: 0;
+  padding: 4px;
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--warning-text);
+  line-height: 0;
+  flex-shrink: 0;
+}
+.doc-banner-dismiss:hover {
+  background: color-mix(in srgb, var(--warning) 14%, transparent);
+}
+
+.doc-area-inner {
+  min-height: 0;
+  overflow: visible;
+}
+/* .doc surface + typography live in doc.css */
+
+/* Right: comment sidebar — shares the cream backdrop (--bg), NOT white. No left
+   border; the only separation from the doc is the doc-shell's margin gap. The
+   column grows with the page and scrolls NATIVELY with the document — cards are
+   positioned once (absolute within .sidebar-inner) and then translate in lockstep
+   with their highlights as you scroll, so there's no per-scroll JS repositioning
+   (which would visibly lag/shake the cards against the smooth-scrolling text). */
+.sidebar {
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+.sidebar-inner {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+}
+
+/* Collapsed panels hide their inner content but keep the (zero-width) track. */
+.layout.nav-collapsed .nav-inner,
+.layout.sidebar-collapsed .sidebar-inner {
+  display: none;
+}

@@ -1,0 +1,280 @@
+/* The cross-doc review inbox, rendered inside the settings modal's Comments
+   section. The styles below cover its heading/filter row, file groups, threads,
+   and delete affordances; the modal owns the surrounding frame. */
+
+/* Heading: title + root (left), close (right) in one row. */
+.dashboard-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.dashboard-actions {
+  margin-left: auto;
+  margin-right: 6px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.dashboard-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  background: transparent;
+  /* Same fixed 26px box as the row/file trash (.dash-row-del) so the heading ×
+     and every row's trash share one centred right-edge column — content-width
+     boxes would centre their glyphs at different x-offsets. */
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  padding: 5px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+.dashboard-close:hover {
+  color: var(--text);
+  background: var(--wash);
+}
+.dashboard-title {
+  font-weight: 800;
+  font-size: 20px;
+  color: var(--text);
+}
+.dashboard-root {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+/* View filter — a segmented control above the list, counts in the labels (it
+   doubles as the summary). Same tab vocabulary as the nav's pane-switcher:
+   transparent tabs, wash hover, active = an elevated surface card. */
+.dash-seg {
+  display: inline-flex;
+  gap: 2px;
+  margin: 0 0 14px;
+}
+.dash-seg-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text-faint);
+  cursor: pointer;
+  line-height: 1.4;
+  transition:
+    color 0.12s,
+    background 0.12s;
+}
+.dash-seg-tab:hover:not(.active) {
+  background: var(--wash);
+  color: var(--text-muted);
+}
+.dash-seg-tab.active {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+.dash-seg-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-faint);
+}
+.dash-seg-tab.active .dash-seg-count {
+  color: var(--text-muted);
+}
+
+.dashboard-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 22px max(18px, calc(50% - 460px));
+}
+.dashboard-empty {
+  color: var(--text-faint);
+  font-size: 14px;
+  padding: 48px 0;
+  text-align: center;
+}
+
+.dash-file {
+  margin-bottom: 18px;
+}
+.dash-file-hdr {
+  display: flex;
+  align-items: center;
+  /* 10px matches the row's meta→trash gap so the counts and the row's "15m ago"
+     end at the same x — the file-header and row right-edges form one column. */
+  gap: 10px;
+  padding: 7px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.dash-file-hdr:hover {
+  background: var(--hover);
+}
+.dash-caret {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--text-faint);
+  transform: rotate(90deg);
+  transition: transform 0.12s ease;
+}
+.dash-file.collapsed .dash-caret {
+  transform: rotate(0deg);
+}
+.dash-file-name {
+  /* Shrinkable with ellipsis, but not greedy — the badge (doc deleted) sits
+     right beside the name; the spacer owns the leftover width. */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text);
+}
+.dash-file-spacer {
+  flex: 1;
+}
+
+/* Orphaned-sidecar group (the .md was deleted; comments stranded). */
+.dash-file.is-orphan .dash-file-name {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+.dash-orphan-badge {
+  /* Not a status chip — a red parenthetical beside the struck filename. */
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--danger);
+  white-space: nowrap;
+}
+.dash-row.is-orphan {
+  cursor: default;
+}
+.dash-row.is-orphan:hover {
+  background: transparent;
+}
+
+.dash-rows {
+  margin: 2px 0 0 4px;
+  border-left: 1px solid var(--border);
+}
+.dash-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  /* 6px right inset matches the file-header + heading-actions, so the row trash,
+     file trash, and heading × all line up in one right-edge column. */
+  padding: 8px 6px 8px 12px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  margin-left: -1px;
+}
+.dash-row:hover {
+  background: var(--hover);
+  border-left-color: var(--border-mid);
+}
+.dash-quote {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-noquote {
+  color: var(--text-faint);
+  font-style: italic;
+}
+.dash-meta {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+/* Status chips — one quiet outline design; meaning carried by border/text
+   color only: rust = open comment work, neutral = resolved. */
+.dash-status {
+  box-sizing: border-box;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-mid);
+  color: var(--text-faint);
+  background: transparent;
+  white-space: nowrap;
+}
+.dash-status.is-open {
+  border-color: color-mix(in srgb, var(--comment) 55%, transparent);
+  color: var(--comment);
+}
+.dash-row.is-resolved .dash-quote {
+  color: var(--text-muted);
+}
+.dash-when {
+  font-size: 11px;
+  color: var(--text-faint);
+  min-width: 56px;
+  text-align: right;
+}
+
+/* Delete controls — hover-revealed on the row / file header; red on hover.
+   Reserve width so revealing them doesn't shift the row contents. */
+.dash-row-del,
+.dash-file-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  padding: 5px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.1s,
+    color 0.1s,
+    background 0.1s;
+}
+.dash-row:hover .dash-row-del,
+.dash-file-hdr:hover .dash-file-del,
+.dash-row-del:focus-visible,
+.dash-file-del:focus-visible {
+  opacity: 1;
+}
+.dash-row-del:hover,
+.dash-file-del:hover {
+  color: var(--danger);
+  background: var(--danger-tint);
+}
+/* File-header trash sits after the counts (which keep margin-left:auto). */
+.dash-file-del {
+  margin-left: 8px;
+}

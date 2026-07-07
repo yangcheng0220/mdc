@@ -1,0 +1,10 @@
+node_modules/
+dist/
+web/dist-dev/
+.DS_Store
+
+# Local workspace config (identity + app trust) — each user/root sets its own; .mdc.toml.example is committed
+.mdc.toml
+
+# margin-comment sidecars — local review artifacts, never shipped
+*.comments.jsonl

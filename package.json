@@ -1,0 +1,70 @@
+{
+  "name": "mdc-workspace",
+  "version": "0.1.0",
+  "description": "A local markdown workspace where humans and coding agents review docs together \u2014 margin comments anchored to the text, stored beside each file so your docs stay untouched. Renders markdown, images, HTML, and PDF; trusted HTML files run as mini apps.",
+  "type": "module",
+  "author": "Yang-Cheng Chen",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yangcheng0220/mdc.git"
+  },
+  "homepage": "https://github.com/yangcheng0220/mdc#readme",
+  "bugs": "https://github.com/yangcheng0220/mdc/issues",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "mdc": "dist/cli.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "docs/*.md",
+    "examples",
+    "web/dist"
+  ],
+  "scripts": {
+    "build": "npm run build:web && tsup",
+    "build:cli": "tsup",
+    "prepack": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "build:web": "vite build --config web/vite.config.ts web",
+    "build:web:dev": "vite build --config web/vite.config.ts web --outDir dist-dev",
+    "ship": "scripts/ship.sh",
+    "typecheck:web": "tsc --noEmit -p web/tsconfig.json"
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.10.3",
+    "@codemirror/lang-markdown": "^6.5.0",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/merge": "^6.12.2",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.43.1",
+    "@hono/node-server": "^2.0.4",
+    "@lezer/highlight": "^1.2.3",
+    "@uiw/react-codemirror": "^4.25.10",
+    "chokidar": "^5.0.0",
+    "commander": "^15.0.0",
+    "highlight.js": "^11.11.1",
+    "hono": "^4.12.25",
+    "marked": "^18.0.5",
+    "mermaid": "^11.15.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "smol-toml": "^1.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.8"
+  }
+}

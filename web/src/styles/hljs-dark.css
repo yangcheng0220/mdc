@@ -1,0 +1,106 @@
+/* GitHub Dark hljs theme, scoped to the dark data-theme so it only
+   applies in dark mode. GENERATED from highlight.js/styles/github-dark.css
+   by prefixing each selector with :root[data-theme="dark"]. Layout-only
+   rules (pre code.hljs padding) are dropped, and the base .hljs `background`
+   is stripped — the doc's --code-bg token owns the code block background;
+   hljs only provides token COLORS here. Regenerate if hljs is updated. */
+
+/* Base code text color (the github-dark default; background dropped — see above). */
+:root[data-theme="dark"] .hljs {
+  color: #c9d1d9;
+}
+:root[data-theme="dark"] .hljs-doctag,
+:root[data-theme="dark"] .hljs-keyword,
+:root[data-theme="dark"] .hljs-meta .hljs-keyword,
+:root[data-theme="dark"] .hljs-template-tag,
+:root[data-theme="dark"] .hljs-template-variable,
+:root[data-theme="dark"] .hljs-type,
+:root[data-theme="dark"] .hljs-variable.language_ {
+  /* prettylights-syntax-keyword */
+  color: #ff7b72
+}
+:root[data-theme="dark"] .hljs-title,
+:root[data-theme="dark"] .hljs-title.class_,
+:root[data-theme="dark"] .hljs-title.class_.inherited__,
+:root[data-theme="dark"] .hljs-title.function_ {
+  /* prettylights-syntax-entity */
+  color: #d2a8ff
+}
+:root[data-theme="dark"] .hljs-attr,
+:root[data-theme="dark"] .hljs-attribute,
+:root[data-theme="dark"] .hljs-literal,
+:root[data-theme="dark"] .hljs-meta,
+:root[data-theme="dark"] .hljs-number,
+:root[data-theme="dark"] .hljs-operator,
+:root[data-theme="dark"] .hljs-variable,
+:root[data-theme="dark"] .hljs-selector-attr,
+:root[data-theme="dark"] .hljs-selector-class,
+:root[data-theme="dark"] .hljs-selector-id {
+  /* prettylights-syntax-constant */
+  color: #79c0ff
+}
+:root[data-theme="dark"] .hljs-regexp,
+:root[data-theme="dark"] .hljs-string,
+:root[data-theme="dark"] .hljs-meta .hljs-string {
+  /* prettylights-syntax-string */
+  color: #a5d6ff
+}
+:root[data-theme="dark"] .hljs-built_in,
+:root[data-theme="dark"] .hljs-symbol {
+  /* prettylights-syntax-variable */
+  color: #ffa657
+}
+:root[data-theme="dark"] .hljs-comment,
+:root[data-theme="dark"] .hljs-code,
+:root[data-theme="dark"] .hljs-formula {
+  /* prettylights-syntax-comment */
+  color: #8b949e
+}
+:root[data-theme="dark"] .hljs-name,
+:root[data-theme="dark"] .hljs-quote,
+:root[data-theme="dark"] .hljs-selector-tag,
+:root[data-theme="dark"] .hljs-selector-pseudo {
+  /* prettylights-syntax-entity-tag */
+  color: #7ee787
+}
+:root[data-theme="dark"] .hljs-subst {
+  /* prettylights-syntax-storage-modifier-import */
+  color: #c9d1d9
+}
+:root[data-theme="dark"] .hljs-section {
+  /* prettylights-syntax-markup-heading */
+  color: #1f6feb;
+  font-weight: bold
+}
+:root[data-theme="dark"] .hljs-bullet {
+  /* prettylights-syntax-markup-list */
+  color: #f2cc60
+}
+:root[data-theme="dark"] .hljs-emphasis {
+  /* prettylights-syntax-markup-italic */
+  color: #c9d1d9;
+  font-style: italic
+}
+:root[data-theme="dark"] .hljs-strong {
+  /* prettylights-syntax-markup-bold */
+  color: #c9d1d9;
+  font-weight: bold
+}
+:root[data-theme="dark"] .hljs-addition {
+  /* prettylights-syntax-markup-inserted */
+  color: #aff5b4;
+  background-color: #033a16
+}
+:root[data-theme="dark"] .hljs-deletion {
+  /* prettylights-syntax-markup-deleted */
+  color: #ffdcd7;
+  background-color: #67060c
+}
+:root[data-theme="dark"] .hljs-char.escape_,
+:root[data-theme="dark"] .hljs-link,
+:root[data-theme="dark"] .hljs-params,
+:root[data-theme="dark"] .hljs-property,
+:root[data-theme="dark"] .hljs-punctuation,
+:root[data-theme="dark"] .hljs-tag {
+  /* purposely ignored */
+}

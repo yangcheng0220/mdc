@@ -1,0 +1,51 @@
+/* Code blocks: the per-block wrap toggle. Syntax-highlight colors come from the
+   highlight.js github theme (imported in main). */
+
+.code-block-wrapper {
+  position: relative;
+}
+.code-wrap-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  background: var(--wash);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 3px 5px;
+  cursor: pointer;
+  color: var(--text-faint);
+  font-size: 0;
+  line-height: 0;
+  opacity: 0;
+  transition:
+    opacity 0.15s,
+    background 0.15s,
+    border-color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.code-block-wrapper:hover .code-wrap-btn {
+  opacity: 1;
+}
+.code-wrap-btn:hover {
+  background: var(--wash-strong);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+.code-wrap-btn.active {
+  opacity: 1;
+  background: var(--accent-tint);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+.code-block-wrapper pre.wrapped {
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: hidden;
+}
+.code-block-wrapper pre.wrapped code {
+  white-space: pre-wrap;
+  word-break: break-word;
+}

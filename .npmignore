@@ -1,0 +1,7 @@
+# Review sidecars are never part of the published package. npm auto-includes
+# README* which would otherwise sweep in README.md.comments.jsonl.
+*.comments.jsonl
+
+# README screenshots are for the GitHub/npm pages, referenced by absolute
+# raw.githubusercontent URLs — no need to ship the bytes in the tarball.
+docs/screenshots/

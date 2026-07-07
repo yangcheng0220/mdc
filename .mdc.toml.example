@@ -1,0 +1,14 @@
+# mdc workspace config. Copy to `.mdc.toml`. Holds two kinds of settings:
+
+# 1. Identity — the name mdc treats as "the user" (vs. agents like claude/codex)
+#    for turn-taking and UI role styling. If absent, mdc defaults to "user".
+#    Set it with `mdc identity <name>`. MDC_USER env var overrides this file.
+#    Identity prefers ~/.mdc.toml.
+user = "your-name"
+
+# 2. Trusted apps — written by mdc when you trust an HTML app to run with file
+#    access. Per-root (no home fallback): trust travels with this workspace.
+#    Each entry maps the app's path to a content hash, so editing the file
+#    re-prompts for trust. You normally don't edit this by hand.
+# [apps]
+# "apps/board/board.html" = "<sha256 of the file's bytes>"

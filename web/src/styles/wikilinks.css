@@ -1,0 +1,27 @@
+/* Wikilinks: resolved links use the accent underline; unresolved ones render
+   visibly broken (muted red, dashed) and aren't clickable. Same underline
+   mechanism as plain doc links (text-decoration, accent-derived color) so all
+   link styles stay one system. */
+
+.wikilink {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.wikilink:hover {
+  text-decoration-color: var(--accent);
+}
+.wikilink.broken {
+  color: var(--broken);
+  text-decoration: underline dashed var(--broken-border);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  cursor: default;
+}
+/* Keep the accent hover from recoloring a broken link's dashed underline. */
+.wikilink.broken:hover {
+  text-decoration-color: var(--broken-border);
+}

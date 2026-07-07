@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!--
+mdc-app:
+  name: Kanban
+-->
+<meta charset="utf-8" />
+<title>Kanban</title>
+<style>
+  :root {
+    --bg: #f6f3ec; --col: #fff; --border: #e4ded4; --border-mid: #d1c9bc;
+    --text: #2b2722; --muted: #6b6356; --wash: rgba(0, 0, 0, 0.04);
+    --danger: #8f3328;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; font: 14px/1.4 system-ui, -apple-system, sans-serif;
+    color: var(--text); background: var(--bg);
+  }
+  header {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 12px 18px; border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  .head-btn {
+    border: 1px solid var(--border-mid); background: var(--col); color: var(--muted);
+    height: 26px; border-radius: 6px; cursor: pointer; font-size: 12px;
+    padding: 0 10px; display: inline-flex; align-items: center; gap: 5px;
+  }
+  .head-btn:hover, .head-btn.open { background: var(--wash); color: var(--text); }
+  /* ⋮ far right — a quiet borderless icon button. */
+  #board-actions {
+    margin-left: auto; width: 26px; height: 26px; padding: 0; border: 0;
+    background: transparent; color: var(--muted); border-radius: 5px;
+    cursor: pointer; font-size: 16px; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  #board-actions:hover, #board-actions.open { background: var(--wash); color: var(--text); }
+  .menu-chev { display: inline-flex; align-items: center; }
+  #status { font-size: 12px; color: var(--muted); }
+  #board { display: flex; gap: 14px; padding: 18px; align-items: flex-start; }
+  /* Columns are outlined regions on the page; the cards inside are white.
+     White cards also keep the native drag ghost clean: the browser rasterizes
+     it on a white backing, which disappears against a white card, so rounded
+     corners survive the drag. */
+  .column {
+    flex: 1; min-width: 0; background: transparent;
+    border: 1px solid var(--border); border-radius: 8px; padding: 10px;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .column.drop-target {
+    background: var(--wash);
+    border-color: var(--border-mid);
+    border-style: dashed;
+  }
+  .column h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--muted); margin: 0 0 8px; font-weight: 600;
+  }
+  .cards { min-height: 22px; display: flex; flex-direction: column; gap: 7px; }
+  .card {
+    background: var(--col); border: 1px solid var(--border); border-radius: 7px;
+    padding: 8px 10px; cursor: grab; white-space: pre-wrap; word-break: break-word;
+  }
+  .card:hover { border-color: var(--border-mid); }
+  .card:active { cursor: grabbing; }
+  .card:focus-visible { outline: 2px solid var(--border-mid); outline-offset: 1px; }
+  .card.dragging-hidden { display: none; }
+  .drop-placeholder {
+    border: 1.5px dashed var(--border-mid); background: var(--wash);
+    border-radius: 6px; cursor: grabbing;
+  }
+  .card-editor {
+    display: flex; align-items: flex-start; gap: 6px;
+    background: var(--col); border: 1px solid var(--border-mid); border-radius: 6px;
+    padding: 5px 6px 5px 9px;
+  }
+  .card-edit {
+    flex: 1; background: transparent; border: 0; padding: 2px 0;
+    font: inherit; color: var(--text); resize: none; min-width: 0;
+    overflow: hidden; /* height tracks content (auto-grow); no inner scrollbar */
+  }
+  .card-edit:focus { outline: none; }
+  .icon-btn {
+    flex-shrink: 0; align-self: center; /* stays vertically centered as the editor grows */
+    min-width: 22px; height: 22px; border: 0; border-radius: 5px;
+    background: transparent; color: var(--muted); cursor: pointer; font-size: 15px;
+    line-height: 1; display: flex; align-items: center; justify-content: center;
+  }
+  .icon-btn:hover { background: var(--wash); color: var(--text); }
+  .inline-confirm, .empty {
+    background: var(--col); border: 1px solid var(--border-mid); border-radius: 6px;
+    padding: 10px;
+  }
+  .empty {
+    width: min(420px, calc(100vw - 36px)); margin: 18px;
+  }
+  .empty h2 { font-size: 16px; margin: 0 0 6px; }
+  .empty p { color: var(--muted); margin: 0 0 10px; }
+  /* Appears only when there's an error — no reserved space below the input. */
+  .field-err { color: var(--danger); font-size: 11px; }
+  .field-err:not(:empty) { margin-top: 4px; }
+  .inline-confirm-msg { font-size: 13px; color: var(--text); margin-bottom: 8px; }
+  .inline-actions { display: flex; gap: 6px; justify-content: flex-end; }
+  .btn { font: inherit; font-size: 12px; border-radius: 5px; padding: 4px 12px; cursor: pointer; }
+  .btn-quiet { background: transparent; border: 1px solid var(--border-mid); color: var(--muted); }
+  .btn-quiet:hover { color: var(--text); }
+  .btn-solid { background: var(--text); border: 1px solid var(--text); color: var(--col); }
+  .add {
+    margin-top: 8px; width: 100%; background: transparent; border: 1px dashed var(--border-mid);
+    border-radius: 6px; padding: 6px; color: var(--muted); cursor: pointer; font: inherit;
+  }
+  .add:hover { color: var(--text); background: var(--wash); }
+  /* Popover menu + name-capture popovers (the shared mini-app vocabulary). */
+  .menu-pop {
+    position: fixed; z-index: 30; min-width: 130px;
+    background: var(--col); border: 1px solid var(--border-mid); border-radius: 7px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12); padding: 4px;
+  }
+  .menu-item {
+    display: block; width: 100%; text-align: left; border: 0; background: transparent;
+    font: inherit; font-size: 13px; color: var(--text); padding: 6px 10px;
+    border-radius: 5px; cursor: pointer;
+  }
+  .menu-item:hover { background: var(--wash); }
+  .menu-item.danger { color: var(--danger); }
+  .menu-item.checked::after { content: " ✓"; color: var(--muted); }
+  .new-board-pop { min-width: 240px; padding: 8px; }
+  .new-board-input {
+    width: 100%; font: inherit; font-size: 13px; color: var(--text);
+    border: 1px solid var(--border-mid); border-radius: 6px; padding: 6px 8px;
+    background: var(--bg);
+  }
+  .new-board-input:focus { outline: none; border-color: var(--muted); }
+  .new-board-input::placeholder { color: var(--muted); }
+  .confirm-msg { font-size: 13px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Kanban</h1>
+  <button id="board-switch" class="head-btn" type="button" title="Switch board">Board</button>
+  <span id="status">Loading…</span>
+  <button id="board-actions" type="button" title="Board actions">⋮</button>
+</header>
+<div id="board"></div>
+
+<script>
+  const STARTER_COLUMNS = [
+    { title: "Backlog", cards: [] },
+    { title: "In progress", cards: [] },
+    { title: "Done", cards: [] },
+  ];
+
+  let appDir = "";
+  let boardsDir = "";
+  let legacyPath = "";
+  let boardNames = [];
+  let activeBoard = "";
+  let board = [];          // [{ title, cards: [string] }]
+  let loaded = false;
+
+  const statusEl = document.getElementById("status");
+  const boardEl = document.getElementById("board");
+  const boardSwitchEl = document.getElementById("board-switch");
+  const boardActionsEl = document.getElementById("board-actions");
+
+  function setStatus(text) { statusEl.textContent = text; }
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  // A stroked down-chevron matching mdc's own dropdown glyph (crisp, scalable,
+  // font-independent).
+  function chevronDown(size) {
+    const s = size || 13;
+    const span = el("span", "menu-chev");
+    span.innerHTML =
+      '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" ' +
+      'stroke="currentColor" stroke-width="2.5" stroke-linecap="round" ' +
+      'stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+    return span;
+  }
+  function joinPath(a, b) { return a ? a + "/" + b : b; }
+  function dirname(path) {
+    const i = path.lastIndexOf("/");
+    return i === -1 ? "" : path.slice(0, i);
+  }
+  function boardPath(name) { return joinPath(boardsDir, name + ".md"); }
+  function boardNameFromPath(path) {
+    return path.slice(boardsDir.length + 1).replace(/\.md$/, "");
+  }
+  function isCleanName(name) { return /^[a-z0-9][a-z0-9-]*$/.test(name); }
+  function cloneStarter() { return STARTER_COLUMNS.map((c) => ({ title: c.title, cards: [] })); }
+
+  // --- markdown <-> board model ----------------------------------------------
+  function parse(md) {
+    const cols = [];
+    let cur = null;
+    for (const line of md.split("\n")) {
+      const h = line.match(/^##\s+(.*)$/);
+      const item = line.match(/^[-*]\s+(.*)$/);
+      if (h) { cur = { title: h[1].trim(), cards: [] }; cols.push(cur); }
+      else if (item && cur) { cur.cards.push(item[1].trim()); }
+    }
+    return cols;
+  }
+  function serialize(cols) {
+    let out = "# Kanban\n";
+    for (const c of cols) {
+      out += "\n## " + c.title + "\n\n";
+      for (const card of c.cards) out += "- " + card + "\n";
+    }
+    return out;
+  }
+
+  // --- persistence -----------------------------------------------------------
+  async function initPaths() {
+    const info = await window.mdc.getAppInfo();
+    appDir = dirname(info.appPath || "kanban.html");
+    boardsDir = joinPath(appDir, "boards");
+    legacyPath = joinPath(appDir, "kanban.md");
+  }
+  async function restoreState() {
+    if (!window.mdc.getState) return;
+    try {
+      const state = await window.mdc.getState();
+      if (state && typeof state.activeBoard === "string") activeBoard = state.activeBoard;
+    } catch {}
+  }
+  function saveState() {
+    if (!window.mdc.setState) return;
+    window.mdc.setState({ activeBoard }).catch(() => {});
+  }
+  async function loadBoardNames() {
+    try {
+      const { entries } = await window.mdc.listFiles(boardsDir, { recursive: false });
+      return entries
+        .filter((e) => e.type !== "dir" && e.path.endsWith(".md"))
+        .map((e) => boardNameFromPath(e.path))
+        .sort((a, b) => a.localeCompare(b));
+    } catch {
+      return [];
+    }
+  }
+  async function readBoard(name) {
+    const { content } = await window.mdc.readText(boardPath(name));
+    const parsed = parse(content);
+    return parsed.length ? parsed : cloneStarter();
+  }
+  async function writeBoard(name, cols) {
+    await window.mdc.writeText(boardPath(name), serialize(cols));
+  }
+  async function save() {
+    if (!activeBoard) return;
+    setStatus("Saving…");
+    try {
+      await writeBoard(activeBoard, board);
+      setStatus("Saved");
+    } catch (e) {
+      setStatus("Save failed: " + (e.message || e));
+    }
+  }
+  async function bootstrapBoards() {
+    boardNames = await loadBoardNames();
+    if (boardNames.length === 0) {
+      try {
+        const { content } = await window.mdc.readText(legacyPath);
+        await window.mdc.writeText(boardPath("main"), content);
+        boardNames = ["main"];
+        activeBoard = "main";
+        setStatus("Migrated legacy board");
+      } catch {}
+    }
+    if (boardNames.length === 0) {
+      activeBoard = "";
+      board = [];
+      loaded = true;
+      render();
+      setStatus("Ready");
+      return;
+    }
+    if (!boardNames.includes(activeBoard)) activeBoard = boardNames[0];
+    await switchBoard(activeBoard, { quiet: true });
+    loaded = true;
+    render();
+    if (statusEl.textContent === "Loading…") setStatus("Ready");
+  }
+
+  // --- board CRUD ------------------------------------------------------------
+  async function createBoard(name, opts) {
+    const columns = opts && opts.empty ? [] : cloneStarter();
+    await writeBoard(name, columns);
+    boardNames = [...boardNames, name].sort((a, b) => a.localeCompare(b));
+    await switchBoard(name);
+    setStatus("Created " + name);
+  }
+  async function renameBoard(next) {
+    const prev = activeBoard;
+    await writeBoard(next, board);
+    await window.mdc.deleteFile(boardPath(prev));
+    boardNames = boardNames.filter((n) => n !== prev).concat(next).sort((a, b) => a.localeCompare(b));
+    await switchBoard(next);
+    setStatus("Renamed " + prev + " to " + next);
+  }
+  async function deleteBoard() {
+    const prev = activeBoard;
+    await window.mdc.deleteFile(boardPath(prev));
+    boardNames = boardNames.filter((n) => n !== prev);
+    if (boardNames.length) await switchBoard(boardNames[0]);
+    else {
+      activeBoard = "";
+      board = [];
+      saveState();
+      render();
+      setStatus("Deleted " + prev);
+    }
+  }
+  async function switchBoard(name, opts) {
+    closeMenu();
+    activeBoard = name;
+    board = await readBoard(name);
+    saveState();
+    render();
+    if (!opts || !opts.quiet) setStatus("Ready");
+  }
+
+  // --- rendering -------------------------------------------------------------
+  let dragFrom = null;       // { col, idx }
+  let dragPlaceholder = null;
+  let dropCol = null;
+  let editing = null;        // { col, idx } | { col, idx: "new" }
+  let confirming = null;     // { col, idx }
+
+  function render() {
+    renderHeader();
+    boardEl.innerHTML = "";
+    if (!loaded) return;
+    if (!activeBoard) {
+      boardEl.style.display = "block";
+      boardEl.appendChild(emptyState());
+      focusFirstInput();
+      return;
+    }
+    boardEl.style.display = "flex";
+    board.forEach((col, ci) => {
+      const colEl = document.createElement("div");
+      colEl.className = "column";
+
+      // The WHOLE column is a drop zone. A depth counter keeps the highlight
+      // stable as the pointer crosses child cards (dragenter/leave bubble).
+      let depth = 0;
+      colEl.addEventListener("dragenter", (e) => {
+        if (!dragFrom) return;
+        e.preventDefault();
+        depth++;
+        colEl.classList.add("drop-target");
+      });
+      colEl.addEventListener("dragover", (e) => {
+        if (!dragFrom || isCardSurface(e.target)) return;
+        e.preventDefault();
+        ensurePlaceholder(cardsEl, ci, null);
+      });
+      colEl.addEventListener("dragleave", () => {
+        depth = Math.max(0, depth - 1);
+        if (depth === 0) colEl.classList.remove("drop-target");
+      });
+      colEl.addEventListener("drop", (e) => {
+        if (!dragFrom) return;
+        e.preventDefault();
+        depth = 0;
+        colEl.classList.remove("drop-target");
+        if (!dragPlaceholder || dragPlaceholder.parentNode !== cardsEl) ensurePlaceholder(cardsEl, ci, null);
+        dropAtPlaceholder();
+      });
+
+      const h = document.createElement("h2");
+      h.textContent = col.title;
+      colEl.appendChild(h);
+
+      const cardsEl = document.createElement("div");
+      cardsEl.className = "cards";
+      enableDropZone(cardsEl, ci);
+      col.cards.forEach((text, idx) => renderCard(cardsEl, text, ci, idx));
+
+      if (editing && editing.col === ci && editing.idx === "new") {
+        cardsEl.appendChild(cardEditor("", {
+          commit: (next) => {
+            if (next !== "") board[ci].cards.push(next);
+            editing = null; render();
+            if (next !== "") save();
+          },
+          cancel: () => { editing = null; render(); },
+        }));
+      }
+      colEl.appendChild(cardsEl);
+
+      if (!(editing && editing.col === ci && editing.idx === "new")) {
+        const add = document.createElement("button");
+        add.className = "add";
+        add.textContent = "+ Add card";
+        add.addEventListener("click", () => { editing = { col: ci, idx: "new" }; render(); });
+        colEl.appendChild(add);
+      }
+
+      boardEl.appendChild(colEl);
+    });
+    focusFirstInput();
+  }
+
+  function renderHeader() {
+    // Label + the shared stroked chevron.
+    boardSwitchEl.textContent = "";
+    boardSwitchEl.appendChild(document.createTextNode((activeBoard || "No board") + " "));
+    boardSwitchEl.appendChild(chevronDown(12));
+    boardSwitchEl.style.display = loaded && !boardNames.length ? "none" : "";
+    boardActionsEl.style.display = loaded && !activeBoard ? "none" : "";
+  }
+
+  function renderCard(cardsEl, text, ci, idx) {
+    if (confirming && confirming.col === ci && confirming.idx === idx) {
+      cardsEl.appendChild(deleteConfirm(
+        () => { board[ci].cards.splice(idx, 1); confirming = null; render(); save(); },
+        () => { confirming = null; render(); },
+      ));
+      return;
+    }
+    if (editing && editing.col === ci && editing.idx === idx) {
+      cardsEl.appendChild(cardEditor(text, {
+        commit: (next) => {
+          if (next !== "") board[ci].cards[idx] = next;
+          editing = null; render();
+          if (next !== "") save();
+        },
+        cancel: () => { editing = null; render(); },
+        del: () => { editing = null; confirming = { col: ci, idx }; render(); },
+      }));
+      return;
+    }
+    const card = document.createElement("div");
+    card.className = "card";
+    card.textContent = text;
+    card.draggable = true;
+    card.tabIndex = 0;
+    card.dataset.col = String(ci);
+    card.dataset.idx = String(idx);
+    card.addEventListener("dragstart", (e) => {
+      dragFrom = { col: ci, idx };
+      e.dataTransfer.effectAllowed = "move";
+      try { e.dataTransfer.setData("text/plain", text); } catch {}
+      dragPlaceholder = document.createElement("div");
+      dragPlaceholder.className = "drop-placeholder";
+      dragPlaceholder.style.height = card.getBoundingClientRect().height + "px";
+      setTimeout(() => card.classList.add("dragging-hidden"), 0);
+    });
+    card.addEventListener("dragend", () => cleanupDrag());
+    card.addEventListener("click", () => { editing = { col: ci, idx }; render(); });
+    cardsEl.appendChild(card);
+  }
+
+  // First-run empty state: a name input + Create, no cancel (there's nothing
+  // to fall back to before the first board exists).
+  function emptyState() {
+    const wrap = el("div", "empty");
+    wrap.appendChild(el("h2", null, "Create a board"));
+    wrap.appendChild(el("p", null, "Start with Backlog, In progress, and Done."));
+    const input = document.createElement("input");
+    input.type = "text"; input.className = "new-board-input";
+    input.placeholder = "board name (e.g. main)";
+    const errEl = el("div", "field-err");
+    const actions = el("div", "modal-actions");
+    const create = el("button", "btn btn-solid", "Create");
+    create.type = "button";
+    const commit = () => commitBoardName(input, errEl, null);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); commit(); }
+    });
+    create.addEventListener("click", commit);
+    actions.appendChild(create);
+    wrap.appendChild(input);
+    wrap.appendChild(errEl);
+    wrap.appendChild(actions);
+    return wrap;
+  }
+
+  // Validate a board-name input and create (renameFrom = null) or rename
+  // (renameFrom = the current name). Shared by the empty state and the popovers.
+  async function commitBoardName(input, errEl, renameFrom) {
+    const name = input.value.trim();
+    if (!name || name === renameFrom) { closeMenu(); return; }
+    if (!isCleanName(name)) { errEl.textContent = "lowercase letters, numbers, hyphens only"; return; }
+    if (boardNames.includes(name)) { errEl.textContent = "a board with that name exists"; return; }
+    closeMenu();
+    try {
+      if (renameFrom) await renameBoard(name);
+      else await createBoard(name);
+    } catch (e) {
+      setStatus("Board change failed: " + (e.message || e));
+    }
+  }
+
+  /** An inline delete-confirmation row (the sandbox blocks native confirm()). */
+  function inlineConfirm(message, onDelete, onCancel) {
+    const wrap = document.createElement("div");
+    wrap.className = "inline-confirm";
+    const msg = document.createElement("div");
+    msg.className = "inline-confirm-msg";
+    msg.textContent = message;
+    const actions = document.createElement("div");
+    actions.className = "inline-actions";
+    const cancel = document.createElement("button");
+    cancel.className = "btn btn-quiet";
+    cancel.type = "button";
+    cancel.textContent = "Cancel";
+    cancel.addEventListener("click", onCancel);
+    const del = document.createElement("button");
+    del.className = "btn btn-solid";
+    del.type = "button";
+    del.textContent = "Delete";
+    del.addEventListener("click", onDelete);
+    actions.appendChild(cancel);
+    actions.appendChild(del);
+    wrap.appendChild(msg);
+    wrap.appendChild(actions);
+    return wrap;
+  }
+
+  function focusFirstInput() {
+    const input = document.querySelector(".card-edit, .empty .new-board-input");
+    if (input) {
+      input.focus();
+      if (input.setSelectionRange) input.setSelectionRange(input.value.length, input.value.length);
+    }
+  }
+
+  function isCardSurface(target) {
+    return target && target.closest && target.closest(".card, .card-editor, .inline-confirm");
+  }
+
+  function enableDropZone(cardsEl, ci) {
+    cardsEl.addEventListener("dragover", (e) => {
+      if (!dragFrom || !dragPlaceholder) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = "move";
+      const after = cardAfterPoint(cardsEl, e.clientY);
+      ensurePlaceholder(cardsEl, ci, after);
+    });
+    cardsEl.addEventListener("drop", (e) => {
+      if (!dragFrom || !dragPlaceholder) return;
+      e.preventDefault();
+      e.stopPropagation();
+      dropAtPlaceholder();
+    });
+  }
+  function ensurePlaceholder(cardsEl, ci, beforeEl) {
+    if (!dragPlaceholder) return;
+    dropCol = ci;
+    if (beforeEl == null) cardsEl.appendChild(dragPlaceholder);
+    else cardsEl.insertBefore(dragPlaceholder, beforeEl);
+  }
+  function cardAfterPoint(cardsEl, y) {
+    const cards = [...cardsEl.querySelectorAll(".card:not(.dragging-hidden)")];
+    for (const card of cards) {
+      const r = card.getBoundingClientRect();
+      if (y < r.top + r.height / 2) return card;
+    }
+    return null;
+  }
+  function dropAtPlaceholder() {
+    if (!dragFrom || !dragPlaceholder || dropCol === null) return;
+    const cardsEl = dragPlaceholder.parentNode;
+    const slots = [...cardsEl.children].filter((c) => !c.classList.contains("dragging-hidden"));
+    const to = Math.max(0, slots.indexOf(dragPlaceholder));
+    const [moved] = board[dragFrom.col].cards.splice(dragFrom.idx, 1);
+    board[dropCol].cards.splice(to, 0, moved);
+    cleanupDrag();
+    render();
+    save();
+  }
+  function cleanupDrag() {
+    document.querySelectorAll(".dragging-hidden").forEach((el) => el.classList.remove("dragging-hidden"));
+    document.querySelectorAll(".drop-target").forEach((el) => el.classList.remove("drop-target"));
+    if (dragPlaceholder && dragPlaceholder.parentNode) dragPlaceholder.remove();
+    dragPlaceholder = null;
+    dragFrom = null;
+    dropCol = null;
+  }
+
+  /** An inline textarea editor. Handlers: { commit(text), cancel(), del? }.
+   *  Enter (or blur) commits the trimmed text; Escape cancels; the × (when a
+   *  `del` handler is given) opens delete confirmation. The settled guard fires
+   *  exactly one outcome (Enter-then-blur previously double-fired). */
+  function cardEditor(initial, h) {
+    const wrap = document.createElement("div");
+    wrap.className = "card-editor";
+    const ta = document.createElement("textarea");
+    ta.className = "card-edit";
+    ta.rows = 1;
+    ta.value = initial;
+    wrap.appendChild(ta);
+
+    // Grow with the content — a multi-line card edits at its full height
+    // instead of scrolling inside a one-line box.
+    const grow = () => {
+      ta.style.height = "auto";
+      ta.style.height = ta.scrollHeight + "px";
+    };
+    ta.addEventListener("input", grow);
+    setTimeout(grow, 0); // after it's in the DOM, so scrollHeight is real
+
+    let settled = false;
+    const once = (fn) => () => { if (settled) return; settled = true; fn(); };
+    const commit = once(() => h.commit(ta.value.trim()));
+    const cancel = once(h.cancel);
+
+    ta.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commit(); }
+      else if (e.key === "Escape") { e.preventDefault(); cancel(); }
+    });
+    ta.addEventListener("blur", commit);
+
+    if (h.del) {
+      const del = document.createElement("button");
+      del.className = "icon-btn";
+      del.type = "button";
+      del.title = "Delete card";
+      del.textContent = "×";
+      // mousedown (not click) so it fires before the textarea's blur-commit.
+      del.addEventListener("mousedown", (e) => { e.preventDefault(); if (settled) return; settled = true; h.del(); });
+      wrap.appendChild(del);
+    }
+    return wrap;
+  }
+
+  function deleteConfirm(onDelete, onCancel) {
+    return inlineConfirm("Delete this card?", onDelete, onCancel);
+  }
+
+  // --- popover menus (one open at a time; outside click / Escape closes) ------
+  let openMenuEl = null;
+  function closeMenu() {
+    if (openMenuEl) { openMenuEl.remove(); openMenuEl = null; }
+    document.querySelectorAll(".open").forEach((b) => b.classList.remove("open"));
+  }
+  // Open a popover of [label, handler, opts?] items ({ danger, checked })
+  // anchored below-left of the trigger. Fixed-positioned off the trigger's
+  // viewport rect so header overflow can't hide it.
+  function openPopover(anchorEl, items) {
+    const wasOpenHere = anchorEl.classList.contains("open");
+    closeMenu();
+    if (wasOpenHere) return; // toggle off
+    anchorEl.classList.add("open");
+    const pop = el("div", "menu-pop");
+    pop.addEventListener("click", (e) => e.stopPropagation());
+    for (const [label, fn, opts] of items) {
+      const o = opts || {};
+      const mi = el("button", "menu-item" + (o.danger ? " danger" : "") + (o.checked ? " checked" : ""), label);
+      mi.type = "button";
+      mi.addEventListener("click", (ev) => { ev.stopPropagation(); closeMenu(); fn(); });
+      pop.appendChild(mi);
+    }
+    positionPop(pop, anchorEl);
+    document.body.appendChild(pop);
+    openMenuEl = pop;
+  }
+  // Position a popover below its trigger: left-aligned normally, right-aligned
+  // when the trigger sits in the right half of the window, so far-right menus
+  // never run off-screen.
+  function positionPop(pop, anchorEl) {
+    const r = anchorEl.getBoundingClientRect();
+    pop.style.top = (r.bottom + 4) + "px";
+    if (r.left > window.innerWidth / 2) pop.style.right = (window.innerWidth - r.right) + "px";
+    else pop.style.left = r.left + "px";
+  }
+  // An anchored name-capture popover (new-board / rename) — the sandbox blocks
+  // native prompt().
+  function promptBoardName(anchorEl, initial, renameFrom) {
+    closeMenu();
+    const pop = el("div", "menu-pop new-board-pop");
+    pop.addEventListener("click", (e) => e.stopPropagation());
+    positionPop(pop, anchorEl);
+    const input = document.createElement("input");
+    input.type = "text"; input.className = "new-board-input";
+    input.placeholder = "board name (e.g. this-week)";
+    input.value = initial;
+    const errEl = el("div", "field-err");
+    pop.appendChild(input); pop.appendChild(errEl);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); commitBoardName(input, errEl, renameFrom); }
+      else if (e.key === "Escape") { e.preventDefault(); closeMenu(); }
+    });
+    document.body.appendChild(pop);
+    openMenuEl = pop;
+    setTimeout(() => { input.focus(); input.select(); }, 0);
+  }
+  // Anchored delete confirm (sandbox blocks native confirm()).
+  function confirmDeleteBoard(anchorEl) {
+    closeMenu();
+    const name = activeBoard;
+    const pop = el("div", "menu-pop new-board-pop");
+    pop.addEventListener("click", (e) => e.stopPropagation());
+    positionPop(pop, anchorEl);
+    pop.appendChild(el("div", "confirm-msg", "Delete board “" + name + "”? Its cards go with it."));
+    const actions = el("div", "modal-actions");
+    const cancel = el("button", "btn btn-quiet", "Cancel");
+    cancel.type = "button";
+    cancel.addEventListener("click", () => closeMenu());
+    const ok = el("button", "btn btn-solid", "Delete board");
+    ok.type = "button";
+    ok.addEventListener("click", async () => {
+      closeMenu();
+      try { await deleteBoard(); }
+      catch (e) { setStatus("Could not delete: " + (e.message || e)); }
+    });
+    actions.appendChild(cancel); actions.appendChild(ok);
+    pop.appendChild(actions);
+    document.body.appendChild(pop);
+    openMenuEl = pop;
+  }
+  function openBoardSwitcher() {
+    // Navigation + creation only: boards to switch to, and "+ New board…" as
+    // the last item. Per-board actions (rename/delete) live in the ⋮ menu.
+    const items = boardNames.map((n) => [n, () => switchBoard(n), { checked: n === activeBoard }]);
+    items.push(["+ New board…", () => promptBoardName(boardSwitchEl, "", null)]);
+    openPopover(boardSwitchEl, items);
+  }
+  function openBoardActions() {
+    if (!activeBoard) return;
+    openPopover(boardActionsEl, [
+      ["Rename board…", () => promptBoardName(boardActionsEl, activeBoard, activeBoard)],
+      ["Delete board", () => confirmDeleteBoard(boardActionsEl), { danger: true }],
+    ]);
+  }
+
+  boardSwitchEl.addEventListener("click", (e) => { e.stopPropagation(); openBoardSwitcher(); });
+  boardActionsEl.addEventListener("click", (e) => { e.stopPropagation(); openBoardActions(); });
+  window.addEventListener("click", () => closeMenu());
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && openMenuEl) { e.preventDefault(); closeMenu(); }
+  });
+
+  // --- boot ------------------------------------------------------------------
+  (async function () {
+    try {
+      await initPaths();
+      await restoreState();
+      await bootstrapBoards();
+    } catch (e) {
+      loaded = true;
+      render();
+      setStatus("Could not load: " + (e.message || e));
+    }
+  })();
+</script>
+</body>
+</html>

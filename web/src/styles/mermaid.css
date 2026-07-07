@@ -1,0 +1,31 @@
+/* Mermaid diagrams: centered SVG that fits the column; a failed block stays
+   visible as a muted, dashed error rather than breaking the page. */
+
+.doc .mermaid {
+  margin: 16px 0;
+  text-align: center;
+  overflow-x: auto;
+}
+.doc .mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+.doc .mermaid.mermaid-error {
+  text-align: left;
+  white-space: pre-wrap;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--broken);
+  border: 1px dashed var(--broken-border);
+  border-radius: 4px;
+  padding: 8px 12px;
+}
+
+/* Mermaid injects a hidden tooltip div into <body>; left in normal flow it adds
+   a few px below the layout and grows the page's scroll height. Pin it out of
+   flow so it can't extend the scrollable area. */
+.mermaidTooltip {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
