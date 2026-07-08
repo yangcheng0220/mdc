@@ -697,9 +697,11 @@ export function buildProgram(setExit: (code: number) => void): Command {
   program
     .name("mdc")
     .description(
-      "mdc — a local markdown workspace where humans and coding agents review " +
-        "docs together. Serves a folder in the browser and reads/writes the " +
-        "margin-comment threads stored next to each file in its .comments.jsonl sidecar.",
+      "mdc — a local markdown workspace for you and your coding agent. Serves a " +
+        "folder in the browser: renders markdown, images, PDFs, and HTML; review " +
+        "docs together in the margin (threads stored next to each file in a " +
+        ".comments.jsonl sidecar); edit in place; and run trusted HTML files as " +
+        "mini apps over your workspace.",
     )
     .version(VERSION)
     .option("--author <name>", "who is writing these entries", "agent")
