@@ -26,12 +26,22 @@ const CARD_GAP = 8;
 
 export type SidebarView = "open" | "resolved";
 
+// The literal default author token (mirrors DEFAULT_USER in src/identity.ts,
+// duplicated because that module pulls in node built-ins the web bundle can't
+// take). Comments written before an identity was set are frozen as this token
+// in the append-only sidecar, so they stay human even after the user renames
+// themselves — otherwise a rename would reclassify every prior comment as agent.
+const DEFAULT_USER = "user";
+
+function isHuman(author: string | undefined, user: string): boolean {
+  return author === user || author === DEFAULT_USER;
+}
 function roleClass(author: string | undefined, user: string): "user" | "agent" {
-  return author === user ? "user" : "agent";
+  return isHuman(author, user) ? "user" : "agent";
 }
 function initials(author: string | undefined, user: string): string {
   if (!author) return "??";
-  return author === user ? author.slice(0, 2).toUpperCase() || "??" : "AI";
+  return isHuman(author, user) ? author.slice(0, 2).toUpperCase() || "??" : "AI";
 }
 
 function flowItems(items: HTMLElement[], list: HTMLElement, start = 6): number {
