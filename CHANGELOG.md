@@ -7,6 +7,12 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 ### Added
 
 ### Changed
+
+### Fixed
+
+## [0.1.1] - 2026-07-08
+
+### Changed
 - `mdc --help` now describes rendering, editing, and mini apps, not just margin review.
 
 ### Fixed
