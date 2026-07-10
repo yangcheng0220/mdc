@@ -21,7 +21,9 @@ export function createEditorExtensions(openPalette: () => void) {
     markdown(),
     markdownHighlightExtension,
     // Prec.highest so ⌘/ opens the palette instead of CodeMirror's default
-    // Mod-/ = toggleComment (which otherwise shadows it).
+    // Mod-/ = toggleComment (which otherwise shadows it). The shadowing is
+    // silent and independent of registration order — any custom binding that
+    // must beat a CM default needs Prec.highest.
     Prec.highest(
       keymap.of([
         {

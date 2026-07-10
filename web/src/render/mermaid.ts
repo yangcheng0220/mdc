@@ -50,6 +50,8 @@ export async function renderMermaid(root: HTMLElement): Promise<void> {
     // run() may reject on the first bad node; mark any block still holding raw
     // source (no SVG yet) as broken so the rest of the page stays usable. Skip
     // detached nodes — their failure is the re-injection race, not bad syntax.
+    // (A frequent bad-syntax culprit: `(`, `#`, or `:` inside node/participant
+    // labels — mermaid's parser chokes on them.)
     root.querySelectorAll<HTMLElement>('div.mermaid:not([data-processed="true"])').forEach((n) => {
       if (!n.isConnected || n.querySelector("svg")) return;
       n.classList.add("mermaid-error");

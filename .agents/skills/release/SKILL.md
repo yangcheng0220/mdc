@@ -17,11 +17,17 @@ Tag a commit that's on `main` and green — CI (`ci.yml`) runs the sign-off on e
 
 3. **Inspect the changelog diff before tagging.** The new version section must contain every bullet that was under `[Unreleased]`. The release notes come straight from this section — no commit scraping — so if a shipped change is missing a line, add it (via the `changelog` skill) before continuing.
 
-4. **Commit** the version bump + changelog together, with a short message: `release x.y.z`.
+4. **Verify the tarball.** What ships to npm is governed by package.json's `files` allowlist plus npm's auto-includes — NOT `.gitignore` — so a clean git tree proves nothing about the package. Run `npm pack` and inspect the actual contents with `tar tzf mdc-workspace-x.y.z.tgz`; never trust a grep of `--dry-run` output (its format is fragile). Check for anything that shouldn't ship — review sidecars (`*.comments.jsonl`), screenshots, local config. Two non-obvious rules when fixing a leak:
+   - npm auto-includes `README*` as a greedy glob — it can sweep in sibling files like `README.md.comments.jsonl`; the `.npmignore` `*.comments.jsonl` line guards this.
+   - A `files` allowlist **overrides** `.npmignore` inside allowlisted dirs — you can't subtract a subpath with an ignore rule; narrow the `files` glob instead (e.g. `docs` → `docs/*.md`).
 
-5. **Tag** the commit with an annotated tag: `git tag -a vx.y.z -m "vx.y.z"`. The tag version MUST match the `package.json` version — the release workflow validates this and fails the publish if they disagree.
+   Delete the packed tarball after checking.
 
-6. **Push** the commit and the tag: `git push && git push origin vx.y.z`. (Release from `main` in the normal case — see the top of this skill.)
+5. **Commit** the version bump + changelog together, with a short message: `release x.y.z`.
+
+6. **Tag** the commit with an annotated tag: `git tag -a vx.y.z -m "vx.y.z"`. The tag version MUST match the `package.json` version — the release workflow validates this and fails the publish if they disagree.
+
+7. **Push** the commit and the tag: `git push && git push origin vx.y.z`. (Release from `main` in the normal case — see the top of this skill.)
 
 GitHub Actions then validates the tag against `package.json`, builds, publishes `mdc-workspace@x.y.z` to npm, and creates a GitHub Release whose notes are the matching `CHANGELOG.md` section.
 
