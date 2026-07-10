@@ -12,6 +12,8 @@ export interface IndexResponse {
   root: string;
   /** The configured user name — drives user-vs-agent role styling. */
   user: string;
+  /** The version of the mdc server serving this frontend. */
+  mdcVersion: string;
   files: IndexEntry[];
   /** Every directory under root, so the tree can render folders with no .md yet. */
   dirs: string[];

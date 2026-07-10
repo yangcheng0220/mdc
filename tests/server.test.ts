@@ -10,6 +10,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { VERSION } from "../src/index.js";
 import { createApp } from "../src/server/app.js";
 import type { RootWatcher } from "../src/server/watcher.js";
 import { readSidecar, sidecarPathFor } from "../src/sidecar.js";
@@ -115,10 +116,12 @@ describe("read routes", () => {
     const data = (await (await req("/api/index")).json()) as {
       root: string;
       user: string;
+      mdcVersion: string;
       files: { path: string; openThreadCount: number }[];
     };
     expect(data.root).toBe(dir);
     expect(data.user).toBe(USER);
+    expect(data.mdcVersion).toBe(VERSION);
     expect(data.files.map((f) => f.path).sort()).toEqual(["doc.md", "two.md"]);
     expect(data.files.every((f) => f.openThreadCount === 0)).toBe(true);
   });

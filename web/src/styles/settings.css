@@ -65,10 +65,15 @@
 
 /* Section rail — a vertical nav. Reuses the chrome tab vocabulary (active =
    surface, hover = the sidebar-rows wash) but laid out as a left list. */
-.settings-nav {
+.settings-rail {
   width: 220px;
   flex-shrink: 0;
   border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.settings-nav {
   padding: 14px 10px;
   overflow-y: auto;
   display: flex;
@@ -96,6 +101,18 @@
 .settings-nav-item.active {
   background: var(--selected);
   color: var(--text);
+}
+.settings-version {
+  margin-top: auto;
+  padding: 12px 22px 16px;
+  color: var(--text-faint);
+  font-size: 11px;
+  line-height: 1.4;
+  text-decoration: none;
+}
+.settings-version:hover {
+  color: var(--text-muted);
+  text-decoration: underline;
 }
 
 .settings-content {

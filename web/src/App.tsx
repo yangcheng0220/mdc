@@ -1135,6 +1135,7 @@ export function App() {
         <Settings
           onClose={() => setSettingsOpen(false)}
           root={index?.root ?? ""}
+          version={index?.mdcVersion ?? null}
           dashboardData={dashboard.data}
           onJump={onJump}
           onDeleteThread={onDeleteThread}
