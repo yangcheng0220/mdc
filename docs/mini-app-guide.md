@@ -151,7 +151,7 @@ Build the app to live within these limits: do all interaction inline, using only
 
 ## Design conventions
 
-A mini app should look like it belongs beside the others — **reuse the shared mini-app design system, don't invent styling.** Apps read as part of mdc when they match it, and jarring when they don't. (Mini apps have their own palette, below — mdc's *product chrome* has a separate design system, [design.md](design.md); work on the product frontend follows that one.)
+A mini app should look like it belongs beside the others — **reuse the shared mini-app design system, don't invent styling.** Apps read as part of mdc when they match it, and jarring when they don't. (Mini apps have their own palette, below — mdc's *product chrome* has a separate design system, [DESIGN.md](../DESIGN.md); work on the product frontend follows that one.)
 
 - **Reuse the shared `:root` palette.** Apps share one token set — `--bg`, `--col`, `--border`, `--border-mid`, `--text`, `--muted`, `--wash` (the hover fill), plus status tints (`--wip-tint/-text`, `--done-tint/-text`, `--todo-*`, `--blocked-*`) when an app shows status. Copy it from the Kanban example rather than hand-picking new colors.
 - **Match the example's chrome.** The Kanban example is the reference for header layout, the card/row look, uppercase muted group labels, inline editors + inline confirm rows, and the `⋯` action menu. Follow those patterns rather than a fresh design.
