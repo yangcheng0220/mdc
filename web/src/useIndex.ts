@@ -31,7 +31,7 @@ function fingerprint(idx: IndexResponse): string {
   const htmls = [...idx.htmls].sort();
   const pdfs = [...idx.pdfs].sort();
   return (
-    `${files.join("\n")}\n--dirs--\n${dirs.join("\n")}` +
+    `${idx.mdcVersion}\n--files--\n${files.join("\n")}\n--dirs--\n${dirs.join("\n")}` +
     `\n--images--\n${images.join("\n")}\n--htmls--\n${htmls.join("\n")}` +
     `\n--pdfs--\n${pdfs.join("\n")}`
   );

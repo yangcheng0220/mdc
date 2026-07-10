@@ -22,6 +22,7 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import {
+  VERSION,
   appendEntry,
   countOpenThreads,
   deriveThreads,
@@ -167,7 +168,16 @@ export function createApp(cfg: ServerConfig): {
     const images = [...state.imageIndex].sort();
     const htmls = [...state.htmlIndex].sort();
     const pdfs = [...state.pdfIndex].sort();
-    return c.json({ root: cfg.root, user: cfg.user, files, dirs, images, htmls, pdfs });
+    return c.json({
+      root: cfg.root,
+      user: cfg.user,
+      mdcVersion: VERSION,
+      files,
+      dirs,
+      images,
+      htmls,
+      pdfs,
+    });
   });
 
   // --- lightweight status: is a browser tab connected? ----------------------

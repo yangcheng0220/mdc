@@ -5,6 +5,7 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 ## [Unreleased]
 
 ### Added
+- Settings now shows the running mdc version with a link to release notes.
 
 ### Changed
 

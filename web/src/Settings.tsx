@@ -23,6 +23,8 @@ export interface SettingsProps {
   onClose: () => void;
   /** The currently-served root, shown in the Workspace section. */
   root: string;
+  /** The running server's build-injected version. */
+  version: string | null;
   /** Cross-doc inbox data (App's useDashboard), rendered in the Comments section. */
   dashboardData: DashboardResponse | null;
   onJump: (file: string, threadId: string, resolved: boolean, newTab: boolean) => void;
@@ -49,6 +51,7 @@ const SECTIONS: Section[] = [
 export function Settings({
   onClose,
   root,
+  version,
   dashboardData,
   onJump,
   onDeleteThread,
@@ -78,20 +81,32 @@ export function Settings({
         </div>
 
         <div className="settings-main">
-          <nav className="settings-nav" role="tablist" aria-label="Settings sections">
-            {SECTIONS.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                role="tab"
-                aria-selected={section === s.id}
-                className={`settings-nav-item${section === s.id ? " active" : ""}`}
-                onClick={() => setSection(s.id)}
+          <div className="settings-rail">
+            <nav className="settings-nav" role="tablist" aria-label="Settings sections">
+              {SECTIONS.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={section === s.id}
+                  className={`settings-nav-item${section === s.id ? " active" : ""}`}
+                  onClick={() => setSection(s.id)}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </nav>
+            {version && (
+              <a
+                className="settings-version"
+                href="https://github.com/yangcheng0220/mdc/releases"
+                target="_blank"
+                rel="noopener noreferrer"
               >
-                {s.label}
-              </button>
-            ))}
-          </nav>
+                mdc {version}
+              </a>
+            )}
+          </div>
 
           <div
             className={`settings-content${section === "inbox" ? " is-dashboard" : ""}`}
