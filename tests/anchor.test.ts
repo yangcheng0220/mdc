@@ -9,6 +9,7 @@
 import { describe, expect, it } from "vitest";
 import {
   LEGACY_DRIFT_CEILING,
+  captureContext,
   collapseWs,
   findAnchorMatch,
   fuzzyFind,
@@ -127,6 +128,14 @@ describe("findAnchorMatch — fuzzy recovery", () => {
 });
 
 describe("helpers", () => {
+  it("captureContext grows around an occurrence until its fingerprint is unique", () => {
+    const text = "alpha target beta\nalpha target delta\n";
+    expect(captureContext(text, text.lastIndexOf("target"), "target")).toEqual({
+      before: "a ",
+      after: " d",
+    });
+  });
+
   it("collapseWs maps transformed offsets back to originals", () => {
     const { text, map } = collapseWs("a  b\n\nc");
     expect(text).toBe("a b c");

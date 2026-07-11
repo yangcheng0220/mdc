@@ -47,6 +47,17 @@ export interface Anchor {
   [key: string]: unknown;
 }
 
+export interface Suggestion {
+  target: {
+    quote: string;
+    context: {
+      before: string;
+      after: string;
+    };
+  };
+  replacement: string;
+}
+
 /** One JSONL line: a comment, a reply, or an event. */
 export interface Entry {
   id: string;
@@ -60,6 +71,7 @@ export interface Entry {
   thread_id?: string;
   comment_id?: string;
   anchor_snapshot?: { quote: string; line?: number | null };
+  suggestion?: Suggestion;
   [key: string]: unknown;
 }
 

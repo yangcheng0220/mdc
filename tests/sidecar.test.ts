@@ -267,6 +267,85 @@ describe("buildEntries", () => {
     ).toThrow(sidecar.ValidationError);
   });
 
+  it("accepts a suggestion on a reply", () => {
+    const suggestion = {
+      target: { quote: "old", context: { before: "", after: " text" } },
+      replacement: "new",
+    };
+    const out = sidecar.buildEntries(
+      [{ parent_id: "c1", body: "tighten this", suggestion }],
+      [comment("c1", "q1")],
+      "f.md",
+      "claude",
+    );
+    expect(out[0]!.suggestion).toEqual(suggestion);
+  });
+
+  it("requires both suggestion target context strings", () => {
+    expect(() =>
+      sidecar.buildEntries(
+        [{
+          parent_id: "c1",
+          body: "tighten this",
+          suggestion: { target: { quote: "old", context: { before: "" } }, replacement: "new" },
+        }],
+        [comment("c1", "q1")],
+        "f.md",
+        "claude",
+      ),
+    ).toThrow(/context\.after/);
+  });
+
+  it("rejects a missing suggestion target context", () => {
+    expect(() =>
+      sidecar.buildEntries(
+        [{
+          parent_id: "c1",
+          body: "tighten this",
+          suggestion: { target: { quote: "old" }, replacement: "new" },
+        }],
+        [comment("c1", "q1")],
+        "f.md",
+        "claude",
+      ),
+    ).toThrow(/target\.context/);
+  });
+
+  it("accepts an empty suggestion replacement", () => {
+    const out = sidecar.buildEntries(
+      [{
+        anchor: { quote: "q" },
+        body: "delete this",
+        suggestion: {
+          target: { quote: "old", context: { before: "", after: "" } },
+          replacement: "",
+        },
+      }],
+      [],
+      "f.md",
+      "claude",
+    );
+    expect(out[0]!.suggestion!.replacement).toBe("");
+  });
+
+  it("rejects a suggestion on an event line", () => {
+    expect(() =>
+      sidecar.buildEntries(
+        [{
+          type: "resolved",
+          thread_id: "c1",
+          suggestion: {
+            target: { quote: "old", context: { before: "", after: "" } },
+            replacement: "new",
+          },
+        }],
+        [comment("c1", "q1")],
+        "f.md",
+        "claude",
+      ),
+    ).toThrow(/only valid on a comment or reply/);
+  });
+
   it("empty body rejected", () => {
     expect(() =>
       sidecar.buildEntries([{ anchor: { quote: "q" }, body: "  " }], [], "f.md", "claude"),
