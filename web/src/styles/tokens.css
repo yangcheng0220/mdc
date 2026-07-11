@@ -48,6 +48,13 @@
   --success-dark: #196530;
   --success-bright: #6ee29a;
 
+  /* Diff — teal marks proposed additions; violet marks current text that a
+     suggestion removes. These stay distinct from live-state green and danger red. */
+  --diff-add: #247b83;
+  --diff-add-tint: color-mix(in srgb, var(--diff-add) 18%, var(--surface));
+  --diff-del: #865c9a;
+  --diff-del-tint: color-mix(in srgb, var(--diff-del) 18%, var(--surface));
+
   /* Status-idle — grey idle handoff dot. */
   --status-idle: #b8b3ac;
 
@@ -118,6 +125,9 @@
   --success: #5cb87a;
   --success-dark: #4a9c66;
   --success-bright: #6ee29a;
+
+  --diff-add: #70c2c5;
+  --diff-del: #c49bd3;
 
   --status-idle: #5a554d;
 

@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { Entry } from "../../src/threads.js";
+import type { Entry, Suggestion } from "../../src/threads.js";
 import type { DisplayThread, PendingComment } from "./commentData.js";
 import type { CommentAnchorY } from "./commentLines.js";
 import { fmtTime, resolveEventsByThread } from "./commentData.js";
@@ -20,6 +20,7 @@ import { CommentMenu } from "./CommentMenu.js";
 import { DropdownMenu } from "./DropdownMenu.js";
 import { CloseIcon, FunnelIcon } from "./icons.js";
 import { EmptySidebar } from "./Empty.js";
+import { shapeSuggestionDiff, type DiffPart } from "./suggestionDiff.js";
 
 const REPLY_FOLD_THRESHOLD = 3;
 const CARD_GAP = 8;
@@ -495,6 +496,9 @@ function ThreadCard({
   }, [replying]);
 
   const showReplies = !foldable || expanded;
+  const latestSuggestionId = [top, ...replies]
+    .filter((entry) => !entry.deleted && entry.suggestion !== undefined)
+    .at(-1)?.id;
 
   const submitReply = () => {
     const body = replyBody.trim();
@@ -553,6 +557,12 @@ function ThreadCard({
       ) : (
         <div className={`body${top.deleted ? " deleted" : ""}`}>{top.body}</div>
       )}
+      {!top.deleted && top.suggestion && (
+        <SuggestionBlock
+          suggestion={top.suggestion}
+          superseded={top.id !== latestSuggestionId}
+        />
+      )}
 
       {(showReplies || foldable) && (
         <div className="replies">
@@ -565,6 +575,7 @@ function ThreadCard({
                 onEdit={onEdit}
                 onRequestDelete={onRequestDelete}
                 reposition={reposition}
+                superseded={r.suggestion !== undefined && r.id !== latestSuggestionId}
               />
             ))}
           {foldable && (
@@ -636,12 +647,14 @@ function Reply({
   onEdit,
   onRequestDelete,
   reposition,
+  superseded,
 }: {
   reply: DisplayThread["replies"][number];
   user: string;
   onEdit: (commentId: string, body: string) => void;
   onRequestDelete: (commentId: string) => void;
   reposition: () => void;
+  superseded: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   useEffect(() => reposition(), [editing, reposition]);
@@ -669,6 +682,58 @@ function Reply({
       ) : (
         <div className="body">{reply.body}</div>
       )}
+      {reply.suggestion && (
+        <SuggestionBlock suggestion={reply.suggestion} superseded={superseded} />
+      )}
+    </div>
+  );
+}
+
+function DiffText({ parts, kind }: { parts: DiffPart[]; kind: "add" | "del" }) {
+  return parts.map((part, index) =>
+    part.changed ? (
+      <mark className={`suggestion-change ${kind}`} key={index}>
+        {part.text}
+      </mark>
+    ) : (
+      <span key={index}>{part.text}</span>
+    ),
+  );
+}
+
+function SuggestionBlock({
+  suggestion,
+  superseded,
+}: {
+  suggestion: Suggestion;
+  superseded: boolean;
+}) {
+  const diff = shapeSuggestionDiff(suggestion.target.quote, suggestion.replacement);
+  return (
+    <div
+      className={`suggestion-block${superseded ? " is-superseded" : ""}`}
+      aria-label={superseded ? "Superseded suggestion diff" : "Suggestion diff"}
+    >
+      <div className="suggestion-heading">
+        <span>Suggestion</span>
+        {superseded && <span className="suggestion-state">superseded</span>}
+      </div>
+      <div className="suggestion-side current">
+        <div className="suggestion-label">Current</div>
+        <div className="suggestion-text">
+          <DiffText parts={diff.current} kind="del" />
+        </div>
+      </div>
+      <div className="suggestion-side proposed">
+        <div className="suggestion-label">Proposed</div>
+        <div className="suggestion-text">
+          {suggestion.replacement === "" ? (
+            <span className="suggestion-deleted">(deleted)</span>
+          ) : (
+            <DiffText parts={diff.proposed} kind="add" />
+          )}
+        </div>
+      </div>
     </div>
   );
 }

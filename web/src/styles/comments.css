@@ -261,6 +261,82 @@
   font-style: italic;
 }
 
+.suggestion-block {
+  margin: 0 13px 10px 42px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg-soft);
+  transition: opacity 0.12s;
+}
+.reply .suggestion-block {
+  margin: 4px 0 4px 29px;
+}
+.suggestion-block.is-superseded {
+  opacity: 0.62;
+}
+.suggestion-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.suggestion-state {
+  color: var(--text-faint);
+  font-weight: 600;
+}
+.suggestion-side {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 7px;
+  padding: 7px 8px;
+}
+.suggestion-side + .suggestion-side {
+  border-top: 1px solid var(--border);
+}
+.suggestion-label {
+  color: var(--text-faint);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.6;
+  text-transform: uppercase;
+}
+.suggestion-text {
+  min-width: 0;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.suggestion-change {
+  padding: 1px 2px;
+  border-radius: 2px;
+  color: inherit;
+}
+.suggestion-change.del {
+  background: var(--diff-del-tint);
+  color: var(--diff-del);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+.suggestion-change.add {
+  background: var(--diff-add-tint);
+  color: var(--diff-add);
+}
+.suggestion-deleted {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
 /* Pending (being-composed) comment — dashed border, inline composer. */
 .comment.pending {
   border-style: dashed;
