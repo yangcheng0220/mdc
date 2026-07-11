@@ -33,11 +33,15 @@ import {
 import { basename, dirname, join } from "node:path";
 import {
   deriveThreads,
+  decidedSuggestions,
+  deletedCommentIds,
   EVENT_TYPES,
+  isEvent,
   openThreadsAwaitingAgent,
   type Anchor,
   type Entry,
   type Suggestion,
+  type SuggestionResolution,
 } from "./threads.js";
 
 // The pure thread-derivation half lives in `threads.js` (no Node deps, so it
@@ -241,6 +245,48 @@ export function buildEntries(
         timestamp: nowIso(),
       };
       if (etype === "resolved") {
+        const hasResolution = entry.resolution !== undefined;
+        const hasSuggestionId = entry.suggestion_id !== undefined;
+        if (hasResolution !== hasSuggestionId) {
+          throw new ValidationError(
+            `entry ${i}: resolved suggestion decisions require resolution and suggestion_id`,
+          );
+        }
+        if (hasResolution) {
+          const resolution = entry.resolution;
+          const suggestionId = entry.suggestion_id;
+          if (resolution !== "applied" && resolution !== "dismissed") {
+            throw new ValidationError(
+              `entry ${i}: resolution must be 'applied' or 'dismissed'`,
+            );
+          }
+          if (typeof suggestionId !== "string" || !suggestionId) {
+            throw new ValidationError(`entry ${i}: suggestion_id must be a non-empty string`);
+          }
+          const allKnown = [...existing, ...prepared];
+          const deleted = deletedCommentIds(allKnown);
+          const suggestionEntry = allKnown.find((candidate) => candidate.id === suggestionId);
+          const belongsToThread =
+            suggestionEntry?.id === threadId || suggestionEntry?.parent_id === threadId;
+          if (
+            !suggestionEntry ||
+            isEvent(suggestionEntry) ||
+            !suggestionEntry.suggestion ||
+            deleted.has(suggestionId) ||
+            !belongsToThread
+          ) {
+            throw new ValidationError(
+              `entry ${i}: suggestion_id '${suggestionId}' is not a surviving suggestion in thread '${threadId}'`,
+            );
+          }
+          if (decidedSuggestions(allKnown).has(suggestionId)) {
+            throw new ValidationError(
+              `entry ${i}: suggestion_id '${suggestionId}' is already decided`,
+            );
+          }
+          event.resolution = resolution as SuggestionResolution;
+          event.suggestion_id = suggestionId;
+        }
         const anchor = top.anchor ?? ({} as Anchor);
         event.anchor_snapshot = {
           quote: anchor.quote ?? "",

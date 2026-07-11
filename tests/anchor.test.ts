@@ -12,6 +12,7 @@ import {
   captureContext,
   collapseWs,
   findAnchorMatch,
+  findTargetStrict,
   fuzzyFind,
   lineOfOffset,
   stripInlineMd,
@@ -64,6 +65,40 @@ describe("findAnchorMatch — context fingerprint (drift-proof path)", () => {
     const m = findAnchorMatch({ quote: "target", context: { before: "three " } }, text);
     expect(m).not.toBeNull();
     expect(m!.startIdx).toBe(text.indexOf("three ") + "three ".length);
+  });
+});
+
+describe("findTargetStrict", () => {
+  it("returns a unique exact fingerprint hit without recovery", () => {
+    const text = "alpha target beta\ngamma target delta\n";
+    expect(
+      findTargetStrict(
+        { quote: "target", context: { before: "gamma ", after: " delta" } },
+        text,
+      ),
+    ).toEqual({
+      startIdx: text.indexOf("gamma ") + "gamma ".length,
+      length: "target".length,
+      recovered: false,
+    });
+  });
+
+  it("refuses whitespace drift", () => {
+    expect(
+      findTargetStrict(
+        { quote: "the quote", context: { before: "before ", after: " after" } },
+        "before  the quote after",
+      ),
+    ).toBeNull();
+  });
+
+  it("refuses a duplicated fingerprint", () => {
+    expect(
+      findTargetStrict(
+        { quote: "target", context: { before: "x ", after: " y" } },
+        "x target y\nx target y\n",
+      ),
+    ).toBeNull();
   });
 });
 

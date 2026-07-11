@@ -275,6 +275,26 @@ function matchByContext(anchor: Anchor, fullText: string): AnchorMatch | null {
 }
 
 /**
+ * Locate a write target only when its raw quote plus stored context fingerprint
+ * occurs exactly once. Unlike display-anchor matching, this never normalizes
+ * whitespace, strips markdown, or falls back to a nearby occurrence.
+ */
+export function findTargetStrict(anchor: Anchor, fullText: string): AnchorMatch | null {
+  const quote = anchor.quote;
+  if (!quote || !anchor.context) return null;
+  const before = anchor.context.before ?? "";
+  const after = anchor.context.after ?? "";
+  const fingerprint = before + quote + after;
+  const exact = allIndexesOf(fullText, fingerprint);
+  if (exact.length !== 1) return null;
+  return {
+    startIdx: exact[0]! + before.length,
+    length: quote.length,
+    recovered: false,
+  };
+}
+
+/**
  * Edit-aware anchor matching. Returns { startIdx, length, recovered } or null
  * (the anchor is orphaned in this text).
  *

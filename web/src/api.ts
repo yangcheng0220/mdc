@@ -4,6 +4,8 @@
  * index returns).
  */
 
+import type { Entry } from "../../src/threads.js";
+
 interface IndexEntry {
   path: string;
   openThreadCount: number;
@@ -183,6 +185,31 @@ async function post(path: string, file: string, body: unknown): Promise<void> {
 /** Mark a thread resolved. */
 export function postResolve(file: string, threadId: string, author: string): Promise<void> {
   return post("/api/comments/resolve", file, { thread_id: threadId, author });
+}
+
+export interface ApplySuggestionResponse {
+  content: string;
+  version: string;
+  entry: Entry;
+}
+
+/** Apply a suggestion to the file and resolve its thread in one server action. */
+export async function postApplySuggestion(
+  file: string,
+  threadId: string,
+  suggestionId: string,
+  author: string,
+): Promise<ApplySuggestionResponse> {
+  const r = await fetch(`/api/suggestions/apply?file=${encodeURIComponent(file)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ thread_id: threadId, suggestion_id: suggestionId, author }),
+  });
+  if (!r.ok) {
+    const detail = await r.text().catch(() => "");
+    throw new ApiError(r.status, detail || r.statusText);
+  }
+  return (await r.json()) as ApplySuggestionResponse;
 }
 
 /** Mark orphaned threads resolved as a system action. */

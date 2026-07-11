@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { Entry, Suggestion } from "../../src/threads.js";
+import { decidedSuggestions, type Entry, type Suggestion } from "../../src/threads.js";
 import type { DisplayThread, PendingComment } from "./commentData.js";
 import type { CommentAnchorY } from "./commentLines.js";
 import { fmtTime, resolveEventsByThread } from "./commentData.js";
@@ -26,6 +26,7 @@ const REPLY_FOLD_THRESHOLD = 3;
 const CARD_GAP = 8;
 
 export type SidebarView = "open" | "resolved";
+export type ApplySuggestionOutcome = "applied" | "stale" | "error";
 
 // The literal default author token (mirrors DEFAULT_USER in src/identity.ts,
 // duplicated because that module pulls in node built-ins the web bundle can't
@@ -86,6 +87,7 @@ export function Comments({
   onCancelPending,
   onReply,
   onResolve,
+  onApplySuggestion,
   onUnresolve,
   onEdit,
   onRequestDelete,
@@ -116,6 +118,10 @@ export function Comments({
   onCancelPending: () => void;
   onReply: (threadId: string, body: string) => void;
   onResolve: (threadId: string) => void;
+  onApplySuggestion: (
+    threadId: string,
+    suggestionId: string,
+  ) => Promise<ApplySuggestionOutcome>;
   onUnresolve: (threadId: string) => void;
   onEdit: (commentId: string, body: string) => void;
   onRequestDelete: (commentId: string) => void;
@@ -137,6 +143,7 @@ export function Comments({
   const open = threads.filter((t) => !t.resolved);
   const resolved = threads.filter((t) => t.resolved);
   const orphanSet = new Set(orphanIds);
+  const decisions = decidedSuggestions(entries);
 
   // Don't strand the user in an empty Resolved view (e.g. they just unresolved
   // the last one) — fall back to Open.
@@ -280,10 +287,13 @@ export function Comments({
                   overlayRoot={editing ? null : overlayRoot}
                   onReply={onReply}
                   onResolve={onResolve}
+                  onApplySuggestion={onApplySuggestion}
                   onEdit={onEdit}
                   onRequestDelete={onRequestDelete}
                   reposition={reposition}
                   orphaned={orphanSet.has(t.top.id)}
+                  decisions={decisions}
+                  editing={editing}
                   onEditModeClick={editing ? onEditModeCardClick : undefined}
                 />
               ))}
@@ -463,10 +473,13 @@ function ThreadCard({
   overlayRoot,
   onReply,
   onResolve,
+  onApplySuggestion,
   onEdit,
   onRequestDelete,
   reposition,
   orphaned,
+  decisions,
+  editing: editMode,
   onEditModeClick,
 }: {
   thread: DisplayThread;
@@ -474,10 +487,16 @@ function ThreadCard({
   overlayRoot: HTMLElement | null;
   onReply: (threadId: string, body: string) => void;
   onResolve: (threadId: string) => void;
+  onApplySuggestion: (
+    threadId: string,
+    suggestionId: string,
+  ) => Promise<ApplySuggestionOutcome>;
   onEdit: (commentId: string, body: string) => void;
   onRequestDelete: (commentId: string) => void;
   reposition: () => void;
   orphaned: boolean;
+  decisions: Map<string, "applied" | "dismissed">;
+  editing: boolean;
   onEditModeClick?: (commentId: string) => void;
 }) {
   const { top, replies } = thread;
@@ -486,6 +505,8 @@ function ThreadCard({
   const [replying, setReplying] = useState(false);
   const [replyBody, setReplyBody] = useState("");
   const [editing, setEditing] = useState(false);
+  const [applyingId, setApplyingId] = useState<string | null>(null);
+  const [staleSuggestionId, setStaleSuggestionId] = useState<string | null>(null);
   const replyRef = useRef<HTMLTextAreaElement>(null);
 
   // Re-flow the cards below whenever this card's height changes in place.
@@ -499,6 +520,15 @@ function ThreadCard({
   const latestSuggestionId = [top, ...replies]
     .filter((entry) => !entry.deleted && entry.suggestion !== undefined)
     .at(-1)?.id;
+  const decidingOrphaned =
+    orphaned || (latestSuggestionId !== undefined && staleSuggestionId === latestSuggestionId);
+
+  const acceptSuggestion = async (suggestionId: string) => {
+    setApplyingId(suggestionId);
+    const outcome = await onApplySuggestion(top.id, suggestionId);
+    if (outcome === "stale") setStaleSuggestionId(suggestionId);
+    setApplyingId(null);
+  };
 
   const submitReply = () => {
     const body = replyBody.trim();
@@ -510,7 +540,7 @@ function ThreadCard({
 
   return (
     <div
-      className={`comment ${roleClass(top.author, user)}${orphaned ? " is-orphaned" : ""}`}
+      className={`comment ${roleClass(top.author, user)}${decidingOrphaned ? " is-orphaned" : ""}`}
       data-sidebar-id={top.id}
       style={{ position: "absolute", left: 8, right: 20, top: 0, visibility: "hidden" }}
       title="Click to jump to highlighted text"
@@ -526,7 +556,7 @@ function ThreadCard({
         <span className={`avatar ${roleClass(top.author, user)}`}>{initials(top.author, user)}</span>
         <span className="author">{top.author}</span>
         <span className="time">{fmtTime(top.timestamp)}</span>
-        {orphaned && <span className="comment-orphan-tag">orphaned</span>}
+        {decidingOrphaned && <span className="comment-orphan-tag">orphaned</span>}
         {!top.deleted && (
           <>
             <button
@@ -561,6 +591,13 @@ function ThreadCard({
         <SuggestionBlock
           suggestion={top.suggestion}
           superseded={top.id !== latestSuggestionId}
+          onAccept={
+            top.id === latestSuggestionId && !decisions.has(top.id) && !editMode
+              ? () => acceptSuggestion(top.id)
+              : undefined
+          }
+          accepting={applyingId === top.id}
+          acceptDisabled={decidingOrphaned}
         />
       )}
 
@@ -576,6 +613,13 @@ function ThreadCard({
                 onRequestDelete={onRequestDelete}
                 reposition={reposition}
                 superseded={r.suggestion !== undefined && r.id !== latestSuggestionId}
+                onAccept={
+                  r.id === latestSuggestionId && !decisions.has(r.id) && !editMode
+                    ? () => acceptSuggestion(r.id)
+                    : undefined
+                }
+                accepting={applyingId === r.id}
+                acceptDisabled={decidingOrphaned}
               />
             ))}
           {foldable && (
@@ -648,6 +692,9 @@ function Reply({
   onRequestDelete,
   reposition,
   superseded,
+  onAccept,
+  accepting,
+  acceptDisabled,
 }: {
   reply: DisplayThread["replies"][number];
   user: string;
@@ -655,6 +702,9 @@ function Reply({
   onRequestDelete: (commentId: string) => void;
   reposition: () => void;
   superseded: boolean;
+  onAccept?: () => void;
+  accepting: boolean;
+  acceptDisabled: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   useEffect(() => reposition(), [editing, reposition]);
@@ -683,7 +733,13 @@ function Reply({
         <div className="body">{reply.body}</div>
       )}
       {reply.suggestion && (
-        <SuggestionBlock suggestion={reply.suggestion} superseded={superseded} />
+        <SuggestionBlock
+          suggestion={reply.suggestion}
+          superseded={superseded}
+          onAccept={onAccept}
+          accepting={accepting}
+          acceptDisabled={acceptDisabled}
+        />
       )}
     </div>
   );
@@ -704,9 +760,15 @@ function DiffText({ parts, kind }: { parts: DiffPart[]; kind: "add" | "del" }) {
 function SuggestionBlock({
   suggestion,
   superseded,
+  onAccept,
+  accepting = false,
+  acceptDisabled = false,
 }: {
   suggestion: Suggestion;
   superseded: boolean;
+  onAccept?: () => void;
+  accepting?: boolean;
+  acceptDisabled?: boolean;
 }) {
   const diff = shapeSuggestionDiff(suggestion.target.quote, suggestion.replacement);
   return (
@@ -734,6 +796,13 @@ function SuggestionBlock({
           )}
         </div>
       </div>
+      {onAccept && (
+        <div className="suggestion-actions">
+          <button type="button" onClick={onAccept} disabled={acceptDisabled || accepting}>
+            {accepting ? "Applying…" : "Accept"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -831,6 +900,9 @@ function ResolvedItem({
           {by}
           {when}
         </span>
+        {ev?.resolution === "applied" && (
+          <span className="suggestion-decision-chip">Applied</span>
+        )}
         <button
           className="resolved-unbtn"
           type="button"

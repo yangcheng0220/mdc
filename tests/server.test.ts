@@ -13,7 +13,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { VERSION } from "../src/index.js";
 import { createApp } from "../src/server/app.js";
 import type { RootWatcher } from "../src/server/watcher.js";
-import { readSidecar, sidecarPathFor } from "../src/sidecar.js";
+import { appendEntry, readSidecar, sidecarPathFor } from "../src/sidecar.js";
+import type { Entry } from "../src/threads.js";
 
 let dir: string;
 let staticDir: string;
@@ -412,6 +413,83 @@ describe("comment CRUD", () => {
       await post("/api/comments/unresolve?file=doc.md", { thread_id: tid, author: USER })
     ).json()) as { type: string };
     expect(un.type).toBe("unresolved");
+  });
+
+  it("applies a strict suggestion and appends a qualified resolve", async () => {
+    const scPath = sidecarPathFor(join(dir, "doc.md"));
+    const suggestion: Entry = {
+      id: "suggestion-1",
+      file: "doc.md",
+      parent_id: null,
+      anchor: { quote: "quick brown fox", line: 3 },
+      author: "agent",
+      body: "Tighten this sentence",
+      timestamp: "2026-07-11T00:00:00.000Z",
+      suggestion: {
+        target: {
+          quote: "The quick brown fox.",
+          context: { before: "# Doc\n\n", after: "\n" },
+        },
+        replacement: "A quick fox.",
+      },
+    };
+    appendEntry(scPath, suggestion);
+
+    const response = await post("/api/suggestions/apply?file=doc.md", {
+      thread_id: suggestion.id,
+      suggestion_id: suggestion.id,
+      author: USER,
+    });
+    expect(response.status).toBe(200);
+    const result = (await response.json()) as {
+      content: string;
+      version: string;
+      entry: Entry;
+    };
+    expect(result.content).toBe("# Doc\n\nA quick fox.\n");
+    expect(result.version).toBeTruthy();
+    expect(readDoc("doc.md")).toBe(result.content);
+    expect(result.entry).toMatchObject({
+      type: "resolved",
+      thread_id: suggestion.id,
+      resolution: "applied",
+      suggestion_id: suggestion.id,
+      anchor_snapshot: { quote: "quick brown fox", line: 3 },
+    });
+    expect(readSidecar(scPath).at(-1)).toEqual(result.entry);
+  });
+
+  it("refuses a drifted suggestion without touching the document or sidecar", async () => {
+    const scPath = sidecarPathFor(join(dir, "doc.md"));
+    const suggestion: Entry = {
+      id: "suggestion-1",
+      file: "doc.md",
+      parent_id: null,
+      anchor: { quote: "quick brown fox", line: 3 },
+      author: "agent",
+      body: "Tighten this sentence",
+      timestamp: "2026-07-11T00:00:00.000Z",
+      suggestion: {
+        target: {
+          quote: "The quick brown fox.",
+          context: { before: "# Doc\n\n", after: "\n" },
+        },
+        replacement: "A quick fox.",
+      },
+    };
+    appendEntry(scPath, suggestion);
+    writeDoc("doc.md", "# Doc\n\nThe  quick brown fox.\n");
+    const beforeDoc = readDoc("doc.md");
+    const beforeSidecar = readFileSync(scPath, "utf8");
+
+    const response = await post("/api/suggestions/apply?file=doc.md", {
+      thread_id: suggestion.id,
+      suggestion_id: suggestion.id,
+      author: USER,
+    });
+    expect(response.status).toBe(409);
+    expect(readDoc("doc.md")).toBe(beforeDoc);
+    expect(readFileSync(scPath, "utf8")).toBe(beforeSidecar);
   });
 
   it("system resolve writes system-authored resolve events", async () => {

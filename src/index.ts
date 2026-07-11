@@ -11,5 +11,6 @@ export const VERSION =
 export * from "./sidecar.js";
 export * from "./identity.js";
 export * from "./anchor.js";
+export * from "./suggest.js";
 export * as handoff from "./handoff.js";
 export * as serverClient from "./server-client.js";

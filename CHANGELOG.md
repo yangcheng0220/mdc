@@ -8,6 +8,7 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 - Settings now shows the running mdc version with a link to release notes.
 - `mdc comment` and `mdc reply` can attach a uniquely targeted suggested replacement, including deletions.
 - Suggestion comments show stacked current and proposed text with word-level changes, deletions, and superseded revisions.
+- Suggestion cards can apply a cleanly matched replacement in view mode and show the resulting Applied state.
 
 ### Changed
 
