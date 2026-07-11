@@ -6,13 +6,10 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 
 ### Added
 - Settings now shows the running mdc version with a link to release notes.
-- `mdc comment` and `mdc reply` can attach a uniquely targeted suggested replacement, including deletions.
-- Suggestion comments show stacked current and proposed text with word-level changes, deletions, and superseded revisions.
-- Suggestion cards can apply a cleanly matched replacement in view mode and show the resulting Applied state.
-- Suggestion cards can reject proposals, preserve Applied or Dismissed decisions when reopened, and surface the next actionable revision to the user and agent.
-- Suggestion cards can apply replacements directly in edit mode with undo and autosave support.
+- Suggestions: an agent can propose an exact edit (including a deletion) on any comment or reply; the thread card shows a word-level diff and the user accepts it into the doc — in rendered view or the editor, where it's a normal undoable edit — rejects it, or replies to refine. Decisions stay on the thread as Applied or Dismissed, a revised proposal supersedes the earlier one, and a suggestion whose target text has drifted orphans safely instead of mis-applying.
 
 ### Changed
+- `mdc setup` now teaches agents to answer doc-change requests with suggestions — propose the exact edit, let the human decide — instead of editing docs directly or describing edits in prose.
 
 ### Fixed
 - `mdc --version` now reports the installed version instead of a stale number.

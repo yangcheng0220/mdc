@@ -8,13 +8,17 @@ Point mdc at a folder and it renders your whole workspace in the browser — mar
 
 **Work with your markdown:**
 
-- **Review in the margin.** Highlight any passage and leave a comment. Your coding agent reads the same comments and replies in the margin — review becomes a threaded, persistent conversation instead of a copy-paste-into-chat loop. The source doc is never touched; comments live in a sidecar beside it.
+- **Review in the margin.** Highlight any passage and leave a comment. Your coding agent reads the same comments and replies in the margin — review becomes a threaded, persistent conversation instead of a copy-paste-into-chat loop. The source doc is never touched; comments — and any suggested edits waiting for your decision — live in a sidecar beside it.
 
-  ![The mdc review loop](https://raw.githubusercontent.com/yangcheng0220/mdc/main/docs/screenshots/review-loop.png)
+  ![The mdc review loop](docs/screenshots/review-loop.png)
+
+- **Accept edits from the margin.** Ask for a change and your agent proposes it as a *suggestion* — a diff right on the thread card. **Accept** writes it into the doc (in rendered view or the editor, where it's a normal undoable edit), **Reject** discards it, or reply to send it back for another pass. Your doc changes only when you accept.
+
+  ![Accepting a suggestion from the margin](docs/screenshots/suggestions.png)
 
 - **Triage across docs.** One dashboard shows every open thread across the whole folder, so you can see what still needs attention without opening each file.
 
-  ![Comment dashboard](https://raw.githubusercontent.com/yangcheng0220/mdc/main/docs/screenshots/dashboard.png)
+  ![Comment dashboard](docs/screenshots/dashboard.png)
 
 - **Edit in place.** Toggle any doc between rendered view and a raw-markdown editor with a syntax palette (`⌘/`). mdc is a place to work, not just a window.
 
@@ -22,11 +26,11 @@ Point mdc at a folder and it renders your whole workspace in the browser — mar
 
 - **View what your agent builds.** Ask your agent for a mockup, report, or diagram and it renders inline in mdc — an `.html` file opens in a sandboxed frame, so you review it in place instead of switching to another tab.
 
-  ![HTML rendered in mdc](https://raw.githubusercontent.com/yangcheng0220/mdc/main/docs/screenshots/html-render.png)
+  ![HTML rendered in mdc](docs/screenshots/html-render.png)
 
 - **Run mini apps.** A trusted HTML file runs as a small app that reads and writes your workspace markdown — a Kanban board, a task browser — through a permissioned bridge.
 
-  ![A mini app running in mdc](https://raw.githubusercontent.com/yangcheng0220/mdc/main/docs/screenshots/mini-app.png)
+  ![A mini app running in mdc](docs/screenshots/mini-app.png)
 
 **And even more.** Create and organize files and folders, open several docs in tabs, jump by outline or fuzzy file search, edit and reply to individual comments, follow `[[wikilinks]]` and section anchors, render Mermaid diagrams, switch between light and dark — and a keyboard shortcut for most of it.
 
@@ -67,6 +71,8 @@ Highlight a passage in any doc and leave a comment. Then review it one of two wa
 
 - **Ask once.** Tell your agent to review your comments on the file. It reads the pending threads, replies in the margin, and stops. The simplest way in.
 - **Review together.** Ask your agent to review with you, and it watches the file for a back-and-forth: each time you click **Hand off** it replies, then re-arms for the next round, until you click **End session**. Your agent knows how to start this from `mdc setup`.
+
+Either way, when a thread calls for a doc change the agent attaches a suggestion — you'll see the diff on its card and can **Accept** (the file updates in place), **Reject**, or keep the conversation going. Deciding is always yours, in the browser.
 
 The **Hand off** button is how you pass the doc to a watching agent mid-session. If no agent is connected when you click it, it copies a ready-to-paste prompt instead — a quick way to kick off a review from the clipboard.
 

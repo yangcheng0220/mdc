@@ -777,7 +777,8 @@ export function buildProgram(setExit: (code: number) => void): Command {
     .description(
       "mdc — a local markdown workspace for you and your coding agent. Serves a " +
         "folder in the browser: renders markdown, images, PDFs, and HTML; review " +
-        "docs together in the margin (threads stored next to each file in a " +
+        "docs together in the margin (threads — including suggested edits the " +
+        "human accepts or rejects — stored next to each file in a " +
         ".comments.jsonl sidecar); edit in place; and run trusted HTML files as " +
         "mini apps over your workspace.",
     )
@@ -791,8 +792,10 @@ typical review loop:
   mdc watch  /abs/doc.md             # block until the user hands off
   mdc list-pending /abs/doc.md       # threads awaiting you (JSON)
   mdc reply  /abs/doc.md <tid> --body "..."
+             [--suggest "new text" --target "exact raw text"]   # propose an edit
   mdc watch  /abs/doc.md             # re-arm for the next round
-                                     # (resolving is the human's action)
+                                     # (resolving and accepting/rejecting
+                                     #  suggestions are the human's actions)
 
 new to mdc? \`mdc setup\` prints the agent setup doc — the full loop and
 how to wire an agent in. \`file\` is an absolute path for every file command
@@ -809,7 +812,8 @@ ids come from list-pending's output. Run \`mdc <command> -h\` for detail.`,
       "List the comment threads on a doc that are awaiting your reply — the " +
         "user spoke last and the thread isn't resolved. Prints {file, pending: " +
         "[thread summaries]} as JSON; each summary carries the thread_id you " +
-        "pass to reply/resolve.",
+        "pass to reply/resolve, plus suggestion_state — the actionable " +
+        "suggestion id and past applied/dismissed decisions.",
     )
     .argument("<file>", "absolute path to the .md")
     .action(function (this: Command, file: string) {
@@ -821,7 +825,8 @@ ids come from list-pending's output. Run \`mdc <command> -h\` for detail.`,
     .summary("one thread's full arc (JSON)")
     .description(
       "Print one thread's full arc — parent comment plus surviving replies, " +
-        "with edits and deletes already folded in. Errors if the thread " +
+        "with edits and deletes already folded in, plus suggestion_state " +
+        "(actionable/decided suggestions). Errors if the thread " +
         "doesn't survive (parent deleted, no replies).",
     )
     .argument("<file>", "absolute path to the .md")
@@ -836,7 +841,9 @@ ids come from list-pending's output. Run \`mdc <command> -h\` for detail.`,
     .description(
       "Add a new top-level comment anchored to --quote (exact text copied " +
         "from the doc). --line pins which occurrence when the quote repeats. " +
-        "Prints the new comment id.",
+        "With --suggest it also carries a proposed replacement for the --target " +
+        "span (exact raw markdown; defaults to --quote) that the user accepts " +
+        "or rejects on the card. Prints the new comment id.",
     )
     .argument("<file>", "absolute path to the .md")
     .requiredOption("--quote <text>", "exact text from the doc to anchor the comment to")
@@ -863,7 +870,9 @@ ids come from list-pending's output. Run \`mdc <command> -h\` for detail.`,
     .summary("reply to a thread")
     .description(
       "Reply to an existing thread (parent_id = the top-level comment id from " +
-        "list-pending). Prints the new reply id.\n\n" +
+        "list-pending). With --suggest/--target the reply carries a proposed " +
+        "edit the user accepts or rejects on the card. Prints the new reply " +
+        "id.\n\n" +
         "If you have a QUESTION for the user about the doc, ask it here, in " +
         "the margin — anchored, persistent review discussion is what reply is " +
         "for; the user answers next turn. Use the terminal only for urgent / " +
