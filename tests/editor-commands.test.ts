@@ -8,7 +8,13 @@
 
 import { describe, expect, it } from "vitest";
 import { EditorState } from "@codemirror/state";
-import { commands, filterCommands, type MarkdownCommand } from "../web/src/editor/commands.js";
+import type { Suggestion } from "../src/threads.js";
+import {
+  buildSuggestionEdit,
+  commands,
+  filterCommands,
+  type MarkdownCommand,
+} from "../web/src/editor/commands.js";
 
 const byId = (id: string): MarkdownCommand => {
   const c = commands.find((c) => c.id === id);
@@ -177,5 +183,30 @@ describe("filterCommands", () => {
     expect(filterCommands("h1").map((c) => c.id)).toContain("h1");
     expect(filterCommands("strong").map((c) => c.id)).toContain("bold"); // keyword
     expect(filterCommands("ul").map((c) => c.id)).toContain("bullet"); // keyword
+  });
+});
+
+describe("suggestion edits", () => {
+  const suggestion: Suggestion = {
+    target: {
+      quote: "old text",
+      context: { before: "Before ", after: " after" },
+    },
+    replacement: "new text",
+  };
+
+  it("builds a replacement against the live editor state", () => {
+    const state = EditorState.create({ doc: "Before old text after" });
+    const spec = buildSuggestionEdit(state, suggestion);
+
+    expect(spec).not.toBeNull();
+    expect(state.update(spec!).state.doc.toString()).toBe("Before new text after");
+  });
+
+  it("refuses a target that drifted in the live editor state", () => {
+    const state = EditorState.create({ doc: "Before  old text after" });
+
+    expect(buildSuggestionEdit(state, suggestion)).toBeNull();
+    expect(state.doc.toString()).toBe("Before  old text after");
   });
 });

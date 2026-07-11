@@ -15,9 +15,10 @@ import CodeMirror from "@uiw/react-codemirror";
 import { EditorState, RangeSetBuilder } from "@codemirror/state";
 import { Decoration, EditorView, GutterMarker, gutter, type DecorationSet } from "@codemirror/view";
 import { MergeView } from "@codemirror/merge";
+import type { Suggestion } from "../../src/threads.js";
 import { MarkdownPalette } from "./MarkdownPalette.js";
 import { DocBanner } from "./DocBanner.js";
-import { runCommand, type MarkdownCommand } from "./editor/commands.js";
+import { applySuggestionEdit, runCommand, type MarkdownCommand } from "./editor/commands.js";
 import { createEditorExtensions } from "./editor/extensions.js";
 import { ApiError, fetchDoc, saveDoc } from "./api.js";
 import { parseFrontmatter } from "./render/frontmatter.js";
@@ -34,6 +35,7 @@ type Conflict = "none" | "banner" | "review";
 
 export interface EditorHandle {
   scrollToComment: (commentId: string) => void;
+  applySuggestion: (suggestion: Suggestion) => boolean;
   /** The file changed on disk under a live editing session (externally
    *  detected, e.g. by the doc-changed watcher) — enter the conflict flow. */
   notifyExternalChange: () => void;
@@ -316,6 +318,10 @@ export const Editor = forwardRef<EditorHandle, {
   };
 
   useImperativeHandle(ref, () => ({
+    applySuggestion(suggestion) {
+      const view = viewRef.current;
+      return view !== null && applySuggestionEdit(suggestion, view);
+    },
     notifyExternalChange() {
       if (conflictRef.current !== "none") return; // already in the flow
       if (timer.current) clearTimeout(timer.current);

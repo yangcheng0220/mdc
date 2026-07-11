@@ -132,6 +132,7 @@ export function Comments({
   onApplySuggestion: (
     threadId: string,
     suggestionId: string,
+    suggestion: Suggestion,
   ) => Promise<ApplySuggestionOutcome>;
   onDismissSuggestion: (threadId: string, suggestionId: string) => Promise<void>;
   onUnresolve: (threadId: string) => void;
@@ -308,7 +309,6 @@ export function Comments({
                   decisions={decisions}
                   actionable={actionableSuggestion(entries, t.top.id)}
                   rawContent={rawContent}
-                  editing={editing}
                   onEditModeClick={editing ? onEditModeCardClick : undefined}
                 />
               ))}
@@ -497,7 +497,6 @@ function ThreadCard({
   decisions,
   actionable,
   rawContent,
-  editing: editMode,
   onEditModeClick,
 }: {
   thread: DisplayThread;
@@ -508,6 +507,7 @@ function ThreadCard({
   onApplySuggestion: (
     threadId: string,
     suggestionId: string,
+    suggestion: Suggestion,
   ) => Promise<ApplySuggestionOutcome>;
   onDismissSuggestion: (threadId: string, suggestionId: string) => Promise<void>;
   onEdit: (commentId: string, body: string) => void;
@@ -517,7 +517,6 @@ function ThreadCard({
   decisions: Map<string, "applied" | "dismissed">;
   actionable: Entry | undefined;
   rawContent: string | null;
-  editing: boolean;
   onEditModeClick?: (commentId: string) => void;
 }) {
   const { top, replies } = thread;
@@ -549,9 +548,9 @@ function ThreadCard({
     targetStale ||
     (actionableSuggestionId !== undefined && staleSuggestionId === actionableSuggestionId);
 
-  const acceptSuggestion = async (suggestionId: string) => {
+  const acceptSuggestion = async (suggestionId: string, suggestion: Suggestion) => {
     setApplyingId(suggestionId);
-    const outcome = await onApplySuggestion(top.id, suggestionId);
+    const outcome = await onApplySuggestion(top.id, suggestionId, suggestion);
     if (outcome === "stale") setStaleSuggestionId(suggestionId);
     setApplyingId(null);
   };
@@ -628,8 +627,8 @@ function ThreadCard({
           superseded={!decisions.has(top.id) && top.id !== actionableSuggestionId}
           decision={decisions.get(top.id)}
           onAccept={
-            top.id === actionableSuggestionId && !editMode && !decidingOrphaned
-              ? () => acceptSuggestion(top.id)
+            top.id === actionableSuggestionId && !decidingOrphaned
+              ? () => acceptSuggestion(top.id, top.suggestion!)
               : undefined
           }
           onReject={
@@ -658,8 +657,8 @@ function ThreadCard({
                 }
                 decision={decisions.get(r.id)}
                 onAccept={
-                  r.id === actionableSuggestionId && !editMode && !decidingOrphaned
-                    ? () => acceptSuggestion(r.id)
+                  r.id === actionableSuggestionId && !decidingOrphaned
+                    ? () => acceptSuggestion(r.id, r.suggestion!)
                     : undefined
                 }
                 onReject={
