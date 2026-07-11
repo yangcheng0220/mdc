@@ -182,9 +182,20 @@ async function post(path: string, file: string, body: unknown): Promise<void> {
   }
 }
 
-/** Mark a thread resolved. */
-export function postResolve(file: string, threadId: string, author: string): Promise<void> {
-  return post("/api/comments/resolve", file, { thread_id: threadId, author });
+/** Mark a thread resolved, optionally recording a suggestion decision. */
+export function postResolve(
+  file: string,
+  threadId: string,
+  author: string,
+  resolution?: "applied" | "dismissed",
+  suggestionId?: string,
+): Promise<void> {
+  return post("/api/comments/resolve", file, {
+    thread_id: threadId,
+    author,
+    ...(resolution === undefined ? {} : { resolution }),
+    ...(suggestionId === undefined ? {} : { suggestion_id: suggestionId }),
+  });
 }
 
 export interface ApplySuggestionResponse {

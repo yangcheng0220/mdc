@@ -22,10 +22,12 @@ import { waitForSignal } from "./handoff.js";
 import { currentUser, currentUserWithSource, homeConfigPath, type IdentityEnv } from "./identity.js";
 import { serverAlive, serverIndex, pendingFor, probeServer, serverTabConnected } from "./server-client.js";
 import {
+  actionableSuggestion,
   ValidationError,
   appendEntries,
   buildEntries,
   deletedCommentIds,
+  decidedSuggestions,
   latestBodyByComment,
   openThreadsAwaitingAgent,
   readSidecar,
@@ -113,6 +115,7 @@ function threadArc(entries: Entry[], threadId: string): Record<string, unknown> 
     thread_id: threadId,
     quote: anchor.quote ?? "",
     line: anchor.line ?? null,
+    suggestion_state: threadSuggestionState(entries, threadId),
     entries: [top, ...replies].map((e) => ({
       id: e.id,
       author: e.author ?? null,
@@ -120,6 +123,25 @@ function threadArc(entries: Entry[], threadId: string): Record<string, unknown> 
       timestamp: e.timestamp ?? null,
       ...(e.suggestion === undefined ? {} : { suggestion: e.suggestion }),
     })),
+  };
+}
+
+function threadSuggestionState(entries: Entry[], threadId: string): Record<string, unknown> {
+  const ids = new Set(
+    entries
+      .filter(
+        (entry) =>
+          entry.suggestion !== undefined &&
+          (entry.id === threadId || entry.parent_id === threadId),
+      )
+      .map((entry) => entry.id),
+  );
+  const decided = Object.fromEntries(
+    [...decidedSuggestions(entries)].filter(([suggestionId]) => ids.has(suggestionId)),
+  );
+  return {
+    actionable: actionableSuggestion(entries, threadId)?.id ?? null,
+    decided,
   };
 }
 
@@ -145,7 +167,10 @@ export function resolveServeRoot(root?: string): string {
 
 function cmdListPending(file: string): number {
   const { mdPath, entries } = resolveFile(file);
-  const awaiting = openThreadsAwaitingAgent(entries, userFor(mdPath));
+  const awaiting = openThreadsAwaitingAgent(entries, userFor(mdPath)).map((thread) => ({
+    ...thread,
+    suggestion_state: threadSuggestionState(entries, thread.thread_id),
+  }));
   printJson({ file: mdPath, pending: awaiting });
   return 0;
 }

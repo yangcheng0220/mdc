@@ -86,6 +86,7 @@ describe("cli", () => {
     const t = data.pending[0];
     expect(t.thread_id).toBe(tid);
     expect(t.awaiting).toBe("agent"); // dana spoke last
+    expect(t.suggestion_state).toEqual({ actionable: null, decided: {} });
   });
 
   it("reply flips pending to empty", async () => {
@@ -122,7 +123,9 @@ describe("cli", () => {
 
     const [getCode, getOut] = await run(["get-thread", md, tid]);
     expect(getCode).toBe(0);
-    expect(JSON.parse(getOut).entries[0].suggestion).toEqual(entry.suggestion);
+    const thread = JSON.parse(getOut);
+    expect(thread.entries[0].suggestion).toEqual(entry.suggestion);
+    expect(thread.suggestion_state).toEqual({ actionable: tid, decided: {} });
   });
 
   it("accepts an empty suggestion replacement", async () => {

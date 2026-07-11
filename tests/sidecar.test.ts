@@ -223,6 +223,39 @@ describe("open-thread helpers", () => {
     expect(sidecar.decidedSuggestions(entries).get("c1")).toBe("applied");
   });
 
+  it("derives one actionable suggestion across supersede, delete, and decision events", () => {
+    const suggestion = (target: string, replacement: string) => ({
+      target: { quote: target, context: { before: "", after: "" } },
+      replacement,
+    });
+    const first = { ...comment("c1", "q1"), suggestion: suggestion("old", "first") };
+    const second = { ...reply("s2", "c1", "agent"), suggestion: suggestion("old", "second") };
+    const chain = [first, second];
+
+    expect(sidecar.actionableSuggestion(chain, "c1")?.id).toBe("s2");
+    expect(
+      sidecar.actionableSuggestion([...chain, event("deleted", { comment_id: "s2" })], "c1")
+        ?.id,
+    ).toBe("c1");
+
+    const applied = event("resolved", {
+      thread_id: "c1",
+      suggestion_id: "s2",
+      resolution: "applied",
+    });
+    expect(sidecar.actionableSuggestion([...chain, applied], "c1")).toBeUndefined();
+    expect(
+      sidecar.actionableSuggestion([...chain, applied, event("unresolved", { thread_id: "c1" })], "c1"),
+    ).toBeUndefined();
+
+    const dismissed = event("resolved", {
+      thread_id: "c1",
+      suggestion_id: "s2",
+      resolution: "dismissed",
+    });
+    expect(sidecar.actionableSuggestion([...chain, dismissed], "c1")).toBeUndefined();
+  });
+
   it("openThreadsAwaitingAgent", () => {
     const entries = [
       comment("c1", "q1", USER), // awaiting agent
@@ -409,6 +442,23 @@ describe("buildEntries", () => {
         USER,
       ),
     ).toThrow(/not a surviving suggestion/);
+  });
+
+  it("rejects a qualified resolve for a superseded suggestion", () => {
+    const suggestion = {
+      target: { quote: "old", context: { before: "", after: "" } },
+      replacement: "new",
+    };
+    const first = { ...comment("c1", "q1"), suggestion };
+    const second = { ...reply("s2", "c1", "agent"), suggestion };
+    expect(() =>
+      sidecar.buildEntries(
+        [{ type: "resolved", thread_id: "c1", resolution: "applied", suggestion_id: "c1" }],
+        [first, second],
+        "f.md",
+        USER,
+      ),
+    ).toThrow(/not the actionable suggestion/);
   });
 
   it("empty body rejected", () => {

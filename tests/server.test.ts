@@ -415,6 +415,51 @@ describe("comment CRUD", () => {
     expect(un.type).toBe("unresolved");
   });
 
+  it("dismisses an actionable suggestion without changing the document", async () => {
+    const scPath = sidecarPathFor(join(dir, "doc.md"));
+    const suggestion: Entry = {
+      id: "suggestion-1",
+      file: "doc.md",
+      parent_id: null,
+      anchor: { quote: "quick brown fox", line: 3 },
+      author: "agent",
+      body: "Tighten this sentence",
+      timestamp: "2026-07-11T00:00:00.000Z",
+      suggestion: {
+        target: {
+          quote: "The quick brown fox.",
+          context: { before: "# Doc\n\n", after: "\n" },
+        },
+        replacement: "A quick fox.",
+      },
+    };
+    appendEntry(scPath, suggestion);
+    const before = readDoc("doc.md");
+
+    const response = await post("/api/comments/resolve?file=doc.md", {
+      thread_id: suggestion.id,
+      suggestion_id: suggestion.id,
+      resolution: "dismissed",
+      author: USER,
+    });
+    expect(response.status).toBe(200);
+    expect(readDoc("doc.md")).toBe(before);
+    expect(readSidecar(scPath).at(-1)).toMatchObject({
+      type: "resolved",
+      thread_id: suggestion.id,
+      suggestion_id: suggestion.id,
+      resolution: "dismissed",
+    });
+
+    expect(
+      (await post("/api/comments/resolve?file=doc.md", {
+        thread_id: suggestion.id,
+        resolution: "dismissed",
+        author: USER,
+      })).status,
+    ).toBe(400);
+  });
+
   it("applies a strict suggestion and appends a qualified resolve", async () => {
     const scPath = sidecarPathFor(join(dir, "doc.md"));
     const suggestion: Entry = {

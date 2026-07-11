@@ -339,6 +339,7 @@
 .suggestion-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 6px;
   padding: 7px 8px;
   border-top: 1px solid var(--border);
   background: var(--surface);
@@ -362,6 +363,16 @@
   background: transparent;
   border-color: var(--border-mid);
   cursor: default;
+}
+.suggestion-actions .suggestion-reject {
+  color: var(--text-muted);
+  background: transparent;
+  border-color: var(--border-mid);
+}
+.suggestion-actions .suggestion-reject:hover:not(:disabled) {
+  color: var(--text);
+  border-color: var(--text-muted);
+  opacity: 1;
 }
 
 /* Pending (being-composed) comment — dashed border, inline composer. */

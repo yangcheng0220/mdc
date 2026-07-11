@@ -648,20 +648,30 @@ export function createApp(cfg: ServerConfig): {
   app.post("/api/comments/resolve", async (c) => {
     const file = requireQuery(c, "file");
     const { mdPath, scPath } = resolveFile(cfg.root, state.index, file);
-    const a = await c.req.json<{ thread_id: string; author: string }>();
+    const a = await c.req.json<{
+      thread_id: string;
+      author: string;
+      resolution?: "applied" | "dismissed";
+      suggestion_id?: string;
+    }>();
     const entries = readSidecar(scPath);
-    const top = topLevelComments(entries).find((t) => t.id === a.thread_id);
-    if (!top) throw new HttpError(400, `thread_id ${a.thread_id} not found`);
-    const anchor = top.anchor ?? ({} as Anchor);
-    const entry: Entry = {
-      id: newId(),
-      file: baseName(mdPath),
-      type: "resolved",
-      thread_id: a.thread_id,
-      anchor_snapshot: { quote: anchor.quote ?? "", line: anchor.line ?? null },
-      author: a.author,
-      timestamp: nowIso(),
-    };
+    let entry: Entry;
+    try {
+      entry = buildEntries(
+        [{
+          type: "resolved",
+          thread_id: a.thread_id,
+          ...(a.resolution === undefined ? {} : { resolution: a.resolution }),
+          ...(a.suggestion_id === undefined ? {} : { suggestion_id: a.suggestion_id }),
+        }],
+        entries,
+        baseName(mdPath),
+        a.author,
+      )[0]!;
+    } catch (error) {
+      if (error instanceof ValidationError) throw new HttpError(400, error.message);
+      throw error;
+    }
     appendEntry(scPath, entry);
     return c.json(entry);
   });

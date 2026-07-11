@@ -175,11 +175,13 @@ export function App() {
   // the outline tracks live edits. Cleared on file switch so the outline never
   // shows the previous doc's headings while the new one loads.
   const [outlineContent, setOutlineContent] = useState<string | null>(null);
+  const [viewRawContent, setViewRawContent] = useState<string | null>(null);
   const [editorRawContent, setEditorRawContent] = useState<string | null>(null);
   const [editorAnchorYs, setEditorAnchorYs] = useState<CommentAnchorY[]>([]);
   const [editorHost, setEditorHost] = useState<HTMLElement | null>(null);
   useEffect(() => {
     setOutlineContent(null);
+    setViewRawContent(null);
     setEditorRawContent(null);
     setEditorAnchorYs([]);
   }, [activeFile]);
@@ -633,6 +635,15 @@ export function App() {
       }
     },
     [activeFile, comments, reloadIndex, toast, user],
+  );
+  const onDismissSuggestion = useCallback(
+    async (threadId: string, suggestionId: string) => {
+      if (!activeFile) return;
+      await postResolve(activeFile, threadId, user, "dismissed", suggestionId);
+      comments.reload();
+      reloadIndex();
+    },
+    [activeFile, comments, reloadIndex, user],
   );
   const onUnresolve = useCallback(
     async (threadId: string) => {
@@ -1118,7 +1129,10 @@ export function App() {
                 onStartPending={onStartPending}
                 pendingActive={!!pending}
                 reloadNonce={docReloadNonce}
-                onContentLoaded={setOutlineContent}
+                onContentLoaded={(body, rawContent) => {
+                  setOutlineContent(body);
+                  setViewRawContent(rawContent);
+                }}
               />
             )}
           </div>
@@ -1130,6 +1144,9 @@ export function App() {
           <Comments
             threads={comments.threads}
             entries={comments.entries}
+            rawContent={
+              activeFile && editingFiles.has(activeFile) ? editorRawContent : viewRawContent
+            }
             orphanIds={viewOrphanIds}
             user={user}
             overlayRoot={overlayRoot}
@@ -1144,6 +1161,7 @@ export function App() {
             onReply={onReply}
             onResolve={onResolve}
             onApplySuggestion={onApplySuggestion}
+            onDismissSuggestion={onDismissSuggestion}
             onUnresolve={onUnresolve}
             onEdit={onEdit}
             onRequestDelete={setDeleteTarget}

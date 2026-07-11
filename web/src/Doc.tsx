@@ -68,9 +68,9 @@ export function Doc({
   pendingActive: boolean;
   /** Bumped to re-fetch the active doc's content in place (banner "Reload"). */
   reloadNonce: number;
-  /** Reports the loaded doc's body (frontmatter stripped) so the outline can
-   *  derive headings from the same text the renderer headings come from. */
-  onContentLoaded?: (body: string) => void;
+  /** Reports both the rendered body and raw markdown so outline and suggestion
+   *  preflight checks share the content from this fetch. */
+  onContentLoaded?: (body: string, rawContent: string) => void;
 }) {
   const [state, setState] = useState<DocState>({ status: "empty" });
   // Tracks which file the current content belongs to, so a banner reload (same
@@ -319,7 +319,7 @@ export function Doc({
         loadedFile.current = file;
         const { rows, body, lineCount } = parseFrontmatter(doc.content);
         setState({ status: "ready", fmRows: rows, fmLineCount: lineCount, html: renderMarkdown(body) });
-        cb.current.onContentLoaded?.(body); // feed the outline the same text headings render from
+        cb.current.onContentLoaded?.(body, doc.content);
       })
       .catch((e: unknown) => {
         if (cancelled) return;

@@ -134,6 +134,27 @@ export function decidedSuggestions(entries: Entry[]): Map<string, SuggestionReso
 }
 
 /**
+ * The only suggestion in a thread that may be decided: the latest surviving
+ * suggestion, provided it has not already received a qualified resolve.
+ */
+export function actionableSuggestion(entries: Entry[], threadId: string): Entry | undefined {
+  const deleted = deletedCommentIds(entries);
+  const decided = decidedSuggestions(entries);
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i]!;
+    if (
+      !isEvent(entry) &&
+      entry.suggestion !== undefined &&
+      !deleted.has(entry.id) &&
+      (entry.id === threadId || entry.parent_id === threadId)
+    ) {
+      return decided.has(entry.id) ? undefined : entry;
+    }
+  }
+  return undefined;
+}
+
+/**
  * comment_id -> latest edited body (last edit event wins). The JSONL keeps every
  * version; this resolves the effective body so an edited comment reads as its
  * newest text. Used wherever a comment is displayed — keep this the one place
