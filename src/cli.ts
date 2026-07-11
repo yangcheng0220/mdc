@@ -12,7 +12,7 @@
 import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { cpSync, existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
-import { findAnchorMatch, lineOfOffset } from "./anchor.js";
+import { allIndexesOf, captureContext, findAnchorMatch, lineOfOffset } from "./anchor.js";
 import { VERSION } from "./index.js";
 import { basename, dirname, join, relative, resolve as resolvePath, isAbsolute } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -34,6 +34,7 @@ import {
   topLevelComments,
   type Anchor,
   type Entry,
+  type Suggestion,
 } from "./sidecar.js";
 
 const DEFAULT_BASE_URL = "http://localhost:8000";
@@ -117,6 +118,7 @@ function threadArc(entries: Entry[], threadId: string): Record<string, unknown> 
       author: e.author ?? null,
       body: bodyOf(e),
       timestamp: e.timestamp ?? null,
+      ...(e.suggestion === undefined ? {} : { suggestion: e.suggestion }),
     })),
   };
 }
@@ -165,7 +167,52 @@ interface CommentOpts {
   line?: number;
   contextBefore?: string;
   contextAfter?: string;
+  suggest?: string;
+  target?: string;
   author: string;
+}
+
+interface ReplyOpts {
+  body: string;
+  suggest?: string;
+  target?: string;
+  author: string;
+}
+
+function buildSuggestion(
+  mdPath: string,
+  replacement: string | undefined,
+  target: string | undefined,
+): Suggestion | undefined {
+  if (replacement === undefined) {
+    if (target !== undefined) throw new CliError("--target requires --suggest");
+    return undefined;
+  }
+  if (target === undefined) throw new CliError("--target is required with --suggest");
+
+  let full: string;
+  try {
+    full = readFileSync(mdPath, "utf8");
+  } catch {
+    throw new CliError(`could not read suggestion target from '${mdPath}'`);
+  }
+  const occurrences = allIndexesOf(full, target);
+  if (occurrences.length !== 1) {
+    throw new CliError(
+      "suggestion target must occur exactly once in the document; pass a longer target",
+    );
+  }
+  const captured = captureContext(full, occurrences[0]!, target);
+  return {
+    target: {
+      quote: target,
+      context: {
+        before: captured?.before ?? "",
+        after: captured?.after ?? "",
+      },
+    },
+    replacement,
+  };
 }
 
 function cmdComment(file: string, opts: CommentOpts): number {
@@ -178,9 +225,14 @@ function cmdComment(file: string, opts: CommentOpts): number {
     // than silently drifting when that copy is edited away.
     anchor.context = { before: opts.contextBefore ?? "", after: opts.contextAfter ?? "" };
   }
+  const suggestion = buildSuggestion(
+    mdPath,
+    opts.suggest,
+    opts.target ?? (opts.suggest === undefined ? undefined : opts.quote),
+  );
   const prepared = write(
     scPath,
-    [{ anchor, body: opts.body }],
+    [{ anchor, body: opts.body, ...(suggestion === undefined ? {} : { suggestion }) }],
     entries,
     basename(mdPath),
     opts.author,
@@ -189,14 +241,15 @@ function cmdComment(file: string, opts: CommentOpts): number {
   return 0;
 }
 
-function cmdReply(file: string, parentId: string, body: string, author: string): number {
+function cmdReply(file: string, parentId: string, opts: ReplyOpts): number {
   const { mdPath, scPath, entries } = resolveFile(file);
+  const suggestion = buildSuggestion(mdPath, opts.suggest, opts.target);
   const prepared = write(
     scPath,
-    [{ parent_id: parentId, body }],
+    [{ parent_id: parentId, body: opts.body, ...(suggestion === undefined ? {} : { suggestion }) }],
     entries,
     basename(mdPath),
-    author,
+    opts.author,
   );
   console.log(`replied: ${prepared[0]!.id}`);
   return 0;
@@ -763,6 +816,8 @@ ids come from list-pending's output. Run \`mdc <command> -h\` for detail.`,
     .argument("<file>", "absolute path to the .md")
     .requiredOption("--quote <text>", "exact text from the doc to anchor the comment to")
     .requiredOption("--body <text>", "the comment text")
+    .option("--suggest <replacement>", "attach a suggested replacement (empty means delete)")
+    .option("--target <quote>", "raw markdown target (defaults to --quote with --suggest)")
     .option(
       "--line <n>",
       "pin the occurrence when --quote appears more than once",
@@ -793,8 +848,10 @@ ids come from list-pending's output. Run \`mdc <command> -h\` for detail.`,
     .argument("<file>", "absolute path to the .md")
     .argument("<parent_id>", "top-level comment id being replied to")
     .requiredOption("--body <text>", "the reply text")
-    .action(function (this: Command, file: string, parentId: string, opts: { body: string }) {
-      setExit(cmdReply(file, parentId, opts.body, author(this)));
+    .option("--suggest <replacement>", "attach a suggested replacement (empty means delete)")
+    .option("--target <quote>", "raw markdown target (required with --suggest)")
+    .action(function (this: Command, file: string, parentId: string, opts: Omit<ReplyOpts, "author">) {
+      setExit(cmdReply(file, parentId, { ...opts, author: author(this) }));
     });
 
   const statusBlurb: Record<string, string> = {

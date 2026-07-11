@@ -37,6 +37,7 @@ import {
   openThreadsAwaitingAgent,
   type Anchor,
   type Entry,
+  type Suggestion,
 } from "./threads.js";
 
 // The pure thread-derivation half lives in `threads.js` (no Node deps, so it
@@ -138,6 +139,43 @@ export function newId(): string {
   return randomBytes(6).toString("hex");
 }
 
+function validateSuggestion(value: unknown, entryIndex: number): Suggestion {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new ValidationError(`entry ${entryIndex}: suggestion must be an object`);
+  }
+  const suggestion = value as Record<string, unknown>;
+  const targetValue = suggestion.target;
+  if (typeof targetValue !== "object" || targetValue === null || Array.isArray(targetValue)) {
+    throw new ValidationError(`entry ${entryIndex}: suggestion.target must be an object`);
+  }
+  const target = targetValue as Record<string, unknown>;
+  if (typeof target.quote !== "string" || !target.quote) {
+    throw new ValidationError(`entry ${entryIndex}: suggestion.target.quote must be non-empty string`);
+  }
+  const contextValue = target.context;
+  if (typeof contextValue !== "object" || contextValue === null || Array.isArray(contextValue)) {
+    throw new ValidationError(`entry ${entryIndex}: suggestion.target.context must be an object`);
+  }
+  const context = contextValue as Record<string, unknown>;
+  for (const key of ["before", "after"] as const) {
+    if (!(key in context) || typeof context[key] !== "string") {
+      throw new ValidationError(
+        `entry ${entryIndex}: suggestion.target.context.${key} must be a string`,
+      );
+    }
+  }
+  if (typeof suggestion.replacement !== "string") {
+    throw new ValidationError(`entry ${entryIndex}: suggestion.replacement must be a string`);
+  }
+  return {
+    target: {
+      quote: target.quote,
+      context: { before: context.before as string, after: context.after as string },
+    },
+    replacement: suggestion.replacement,
+  };
+}
+
 /**
  * Validate a batch and return prepared entries (with id/file/author/timestamp
  * filled), ready to append. Throws ValidationError on the first bad entry.
@@ -178,6 +216,10 @@ export function buildEntries(
     }
     const entry = e as Record<string, unknown>;
     const etype = entry.type;
+
+    if (etype !== undefined && etype !== null && "suggestion" in entry) {
+      throw new ValidationError(`entry ${i}: suggestion is only valid on a comment or reply`);
+    }
 
     if (etype === "resolved" || etype === "unresolved" || etype === "acknowledged") {
       const threadId = entry.thread_id;
@@ -249,6 +291,7 @@ export function buildEntries(
     }
     const parentId = (entry.parent_id ?? null) as string | null;
     const anchor = (entry.anchor ?? null) as Anchor | null;
+    const suggestion = "suggestion" in entry ? validateSuggestion(entry.suggestion, i) : undefined;
     if (parentId === null && anchor === null) {
       throw new ValidationError(
         `entry ${i}: must have either parent_id (reply) or anchor (top-level)`,
@@ -284,7 +327,7 @@ export function buildEntries(
       }
     }
 
-    prepared.push({
+    const content: Entry = {
       id: newId(),
       file: fileName,
       anchor,
@@ -292,7 +335,9 @@ export function buildEntries(
       author,
       body,
       timestamp: nowIso(),
-    });
+    };
+    if (suggestion !== undefined) content.suggestion = suggestion;
+    prepared.push(content);
   }
 
   return prepared;

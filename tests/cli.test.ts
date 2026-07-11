@@ -96,6 +96,84 @@ describe("cli", () => {
     expect(JSON.parse(out).pending).toEqual([]);
   });
 
+  it("comment suggestion defaults its target and survives get-thread", async () => {
+    const [code, out] = await run([
+      "--author",
+      "claude",
+      "comment",
+      md,
+      "--quote",
+      "quick brown fox",
+      "--body",
+      "tighten this",
+      "--suggest",
+      "swift fox",
+    ]);
+    expect(code).toBe(0);
+    const tid = out.split(/:(.*)/s)[1]!.trim();
+    const entry = readSidecar(sidecarPathFor(md))[0]!;
+    expect(entry.suggestion).toEqual({
+      target: {
+        quote: "quick brown fox",
+        context: { before: " ", after: "." },
+      },
+      replacement: "swift fox",
+    });
+
+    const [getCode, getOut] = await run(["get-thread", md, tid]);
+    expect(getCode).toBe(0);
+    expect(JSON.parse(getOut).entries[0].suggestion).toEqual(entry.suggestion);
+  });
+
+  it("accepts an empty suggestion replacement", async () => {
+    const [code] = await run([
+      "comment",
+      md,
+      "--quote",
+      "quick brown fox",
+      "--body",
+      "delete this",
+      "--suggest",
+      "",
+    ]);
+    expect(code).toBe(0);
+    expect(readSidecar(sidecarPathFor(md))[0]!.suggestion!.replacement).toBe("");
+  });
+
+  it("requires a reply target when suggesting", async () => {
+    const tid = await comment();
+    const [code] = await run([
+      "--author",
+      "claude",
+      "reply",
+      md,
+      tid,
+      "--body",
+      "tighten this",
+      "--suggest",
+      "new text",
+    ]);
+    expect(code).toBe(1);
+    expect(readSidecar(sidecarPathFor(md))).toHaveLength(1);
+  });
+
+  it("rejects an ambiguous suggestion target without appending", async () => {
+    writeFileSync(md, "repeat target\nrepeat target\n");
+    const [code] = await run([
+      "comment",
+      md,
+      "--quote",
+      "repeat target",
+      "--body",
+      "tighten this",
+      "--suggest",
+      "replacement",
+    ]);
+    expect(code).toBe(1);
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("pass a longer target"));
+    expect(readSidecar(sidecarPathFor(md))).toEqual([]);
+  });
+
   it("acknowledge sets lifecycle", async () => {
     const tid = await comment();
     await run(["--author", "claude", "acknowledge", md, tid]);

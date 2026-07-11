@@ -22,7 +22,7 @@
  * its own offset→line mapper via `lineOf`.
  */
 
-import type { Anchor } from "./sidecar.js";
+import type { Anchor, AnchorContext } from "./sidecar.js";
 
 /**
  * Max line distance a legacy (no-context) multi-occurrence match may sit from
@@ -54,6 +54,33 @@ export function allIndexesOf(hay: string, needle: string): number[] {
     i = hay.indexOf(needle, i + 1);
   }
   return out;
+}
+
+/**
+ * Surrounding context for one occurrence of a quote. The window grows equally
+ * on both sides until the resulting fingerprint is unique, capped at 40
+ * characters per side. Callers that do not need a fingerprint for a unique
+ * bare quote can skip this helper.
+ */
+export function captureContext(
+  full: string,
+  at: number,
+  quote: string,
+): Required<AnchorContext> | undefined {
+  const MAX_CONTEXT = 40;
+  if (at < 0 || full.slice(at, at + quote.length) !== quote) return undefined;
+
+  for (let span = 1; span <= MAX_CONTEXT; span++) {
+    const before = full.slice(Math.max(0, at - span), at);
+    const after = full.slice(at + quote.length, at + quote.length + span);
+    if (allIndexesOf(full, before + quote + after).length === 1) {
+      return { before, after };
+    }
+  }
+  return {
+    before: full.slice(Math.max(0, at - MAX_CONTEXT), at),
+    after: full.slice(at + quote.length, at + quote.length + MAX_CONTEXT),
+  };
 }
 
 /** Exact 1-indexed line of a character offset in raw text. */

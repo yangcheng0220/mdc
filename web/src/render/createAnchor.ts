@@ -9,7 +9,7 @@
  * primitives live in the core; this module is the create-time, DOM-aware side.
  */
 
-import { allIndexesOf, stripInlineMd } from "../../../src/anchor.js";
+import { allIndexesOf, captureContext, stripInlineMd } from "../../../src/anchor.js";
 import type { AnchorContext } from "../api.js";
 
 const BLOCK_TAGS = new Set([
@@ -52,7 +52,6 @@ export function computeAnchorContext(
   quote: string,
   selOffset: number,
 ): AnchorContext | undefined {
-  const MAX_CTX = 40;
   const full = root.textContent ?? "";
   if (allIndexesOf(full, quote).length <= 1) return undefined; // unique → none
 
@@ -64,19 +63,7 @@ export function computeAnchorContext(
       : full.indexOf(quote);
   if (at < 0) return undefined;
 
-  for (let span = 1; span <= MAX_CTX; span++) {
-    const before = full.slice(Math.max(0, at - span), at);
-    const after = full.slice(at + quote.length, at + quote.length + span);
-    if (allIndexesOf(full, before + quote + after).length === 1) {
-      return { before, after };
-    }
-  }
-  // Capped without becoming unique — store the widest window; the matcher
-  // requires a unique hit, so a still-ambiguous fingerprint safely orphans.
-  return {
-    before: full.slice(Math.max(0, at - MAX_CTX), at),
-    after: full.slice(at + quote.length, at + quote.length + MAX_CTX),
-  };
+  return captureContext(full, at, quote);
 }
 
 /**
