@@ -18,7 +18,7 @@ Tag a commit that's on `main` and green — CI (`ci.yml`) runs the sign-off on e
 3. **Inspect the changelog diff before tagging.** The new version section must contain every bullet that was under `[Unreleased]`. The release notes come straight from this section — no commit scraping — so if a shipped change is missing a line, add it (via the `changelog` skill) before continuing.
 
 4. **Verify the tarball.** What ships to npm is governed by package.json's `files` allowlist plus npm's auto-includes — NOT `.gitignore` — so a clean git tree proves nothing about the package. Run `npm pack` and inspect the actual contents with `tar tzf mdc-workspace-x.y.z.tgz`; never trust a grep of `--dry-run` output (its format is fragile). Check for anything that shouldn't ship — review sidecars (`*.comments.jsonl`), screenshots, local config. Two non-obvious rules when fixing a leak:
-   - npm auto-includes `README*` as a greedy glob — it can sweep in sibling files like `README.md.comments.jsonl`; the `.npmignore` `*.comments.jsonl` line guards this.
+   - npm auto-includes `README*` as a greedy glob — it sweeps in sibling files like `README.md.comments.jsonl`, and its force-include **overrides `.npmignore`** (verified npm 10/11). The only guards are this pack inspection and CI's clean checkout; if the inspection finds a README sidecar, delete the local file before packing.
    - A `files` allowlist **overrides** `.npmignore` inside allowlisted dirs — you can't subtract a subpath with an ignore rule; narrow the `files` glob instead (e.g. `docs` → `docs/*.md`).
 
    Delete the packed tarball after checking.

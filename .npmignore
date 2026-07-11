@@ -1,5 +1,8 @@
-# Review sidecars are never part of the published package. npm auto-includes
-# README* which would otherwise sweep in README.md.comments.jsonl.
+# Review sidecars are never part of the published package. NOTE: npm's
+# README* auto-include OVERRIDES this ignore for README.md.comments.jsonl
+# (verified npm 10/11) — the real guards are the gitignore (CI publishes from
+# a clean checkout) and the pre-tag `npm pack` inspection in the release
+# skill. This line still covers sidecars swept in via other paths.
 *.comments.jsonl
 
 # README screenshots are for the GitHub/npm pages, referenced by absolute
