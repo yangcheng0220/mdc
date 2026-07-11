@@ -4,7 +4,7 @@ This document wires a coding agent into mdc. Print it any time with `mdc setup`.
 
 mdc is a local markdown workspace for humans and coding agents: it serves a folder in the browser, and the file tree opens markdown (with Mermaid diagrams, syntax-highlighted code, task lists, …), images, PDFs, and `.html` files in a sandboxed frame. The HTML surface matters for agents: produce a mockup, report, or diagram anywhere in the workspace and the user views it inline — `mdc open` it; doc edits appear via a live-reload banner, nothing restarts.
 
-Review is the heart of it: the human highlights text in a doc and leaves margin comments; the agent reads and answers them through the `mdc` CLI. Comments live in a `.comments.jsonl` sidecar next to each `.md` file — the doc itself is never touched by commenting, and the sidecar works with or without the server running. **Margin comments are markdown-only:** `.md` files carry the review threads; images, HTML, and PDFs are view-only — don't point the review loop at them.
+Review is the heart of it: the human highlights text in a doc and leaves margin comments; the agent reads and answers them through the `mdc` CLI. When an answer calls for a doc change, it arrives as a suggestion the human accepts or rejects in the margin. Comments live in a `.comments.jsonl` sidecar next to each `.md` file — the doc itself is never touched by commenting, and the sidecar works with or without the server running. **Margin comments are markdown-only:** `.md` files carry the review threads; images, HTML, and PDFs are view-only — don't point the review loop at them.
 
 ## How to use this document
 
@@ -68,22 +68,32 @@ Switch on `intent`:
 Read the threads, then the doc — anchors only make sense in context:
 
 ```
-mdc list-pending <file>              # threads awaiting reply (JSON: ids, quotes, lines, entries)
-mdc get-thread <file> <thread_id>    # one thread's full arc
-mdc reply <file> <parent_id> --body "…"
-mdc comment <file> --quote "…" --body "…" [--line N]   # new top-level comment (draft reviews)
+mdc list-pending <file>              # threads awaiting reply (JSON: ids, quotes, lines, entries, suggestion_state)
+mdc get-thread <file> <thread_id>    # one thread's full arc (includes suggestion_state)
+mdc reply <file> <parent_id> --body "…" [--suggest "replacement" --target "exact raw text"]
+mdc comment <file> --quote "…" --body "…" [--line N] [--suggest "replacement" [--target "…"]]
 ```
 
 Rules that make the loop work — get these wrong and the review breaks:
 
 - **Content in the margin, status in the chat.** The margin reply is the deliverable. Decide each reply silently and post it with `mdc reply`; the chat gets one status line per thread (`thread <id> — replied`), never the reply text or a preamble narrating what will be posted. A clarifying question is still review content — it goes in the margin as a reply that asks, not in the chat.
 - **Reply; don't resolve.** Resolving hides the thread and with it the fresh reply. Resolving is the user's action after reading; only resolve on their explicit request.
-- **Every thread gets a reply** — that's the unit of work. If a thread asks for a doc change that is small, local, and unambiguous, make the edit directly in the `.md` and reply noting it was made; if the change is large or could be applied more than one way, reply proposing it instead. Never hand-edit the sidecar — the CLI writes it.
+- **Every thread gets a reply — in the form the thread asks for.** That's the unit of work. A question gets an answer, an ambiguity gets a question back, and a request for a doc change gets a suggestion: attach the exact replacement to the reply (`--suggest`, next section) instead of editing the `.md` directly or describing the edit in prose; the user accepts, rejects, or refines it in the margin. Don't manufacture a suggestion when nothing needs changing — it answers a change request, it never replaces an answer. Never edit the doc out from under an open review, and never hand-edit the sidecar — the CLI writes it.
 - **Answer questions from what the doc (and the surrounding project) actually says — never fabricate.** If the doc doesn't contain the answer, the reply says so and asks — do not invent an answer, and do not edit new claims into the doc to settle a question. When an inconsistency can be fixed in more than one direction (two numbers disagree, two names conflict), ask which is right instead of picking one.
-- **Draft reviews** (user asked for comments on a fresh doc): post local, anchored points via `mdc comment` — one thought per entry, quoting the exact rendered text the user would select; 3–8 anchors is typical. Only feedback with no single anchor (structure, missing pieces, overall judgment) belongs in the chat.
+- **Draft reviews** (user asked for comments on a fresh doc): post local, anchored points via `mdc comment` — one thought per entry, quoting the exact rendered text the user would select; 3–8 anchors is typical. When a point comes with a concrete fix in mind, attach it as a suggestion (`--suggest`, with an explicit raw `--target`) so the user can apply it in one click. Only feedback with no single anchor (structure, missing pieces, overall judgment) belongs in the chat.
 - **Empty `list-pending` when threads were expected** → suspect identity before concluding the doc is clean: a thread is "pending" only when the configured human spoke last, so writing replies under the human's name (or listing as the wrong user) makes pending work invisible.
 
-The sidecar is the source of truth: `list-pending`, `get-thread`, `reply`, `comment` all work with no server running. Only `watch` and `open` need one.
+### Suggestions — propose the edit, let the user decide
+
+A *suggestion* is a comment or reply carrying the exact replacement for one contiguous span of raw markdown: `--suggest <replacement>` plus `--target <exact raw text>` (`--suggest ""` proposes deleting the target). The CLI requires the target to occur exactly once in the doc — pass a longer target if it errors — and fingerprints it automatically. The user sees a diff on the thread card and accepts (the file updates and the thread resolves), rejects, or replies to refine.
+
+- **Quote and target are different views of the same span.** `--quote` anchors the margin card in *rendered* text (no `**`, no backticks, no list markers); `--target` must be the exact *raw* markdown. On `comment`, `--target` defaults to `--quote` — safe only when the span contains no markdown syntax. If the span has any markers, pass both explicitly, or the card orphans on screen.
+- **Deciding is the user's act, in the browser.** The CLI cannot accept or reject — propose and wait. If the user asks in chat to apply a pending suggestion, point them to **Accept** on the card instead — never apply it by hand-editing the doc: a hand-applied suggestion orphans and leaves its thread dangling open.
+- **Revise by superseding.** Suggestions are immutable and each is decidable at most once: to change a proposal, post a new suggestion in the same thread; it becomes the actionable one.
+- **Drift orphans a suggestion.** If the doc changes so the target no longer matches exactly, the suggestion can't be applied — re-propose against the current text.
+- `list-pending` and `get-thread` report `suggestion_state`: the actionable suggestion id plus which suggestions were applied or dismissed.
+
+The sidecar is the source of truth: `list-pending`, `get-thread`, `reply`, `comment` — suggestions included — all work with no server running. Only `watch` and `open` need one.
 
 ## Mini apps
 
