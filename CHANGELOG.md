@@ -10,6 +10,7 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 - Suggestion comments show stacked current and proposed text with word-level changes, deletions, and superseded revisions.
 - Suggestion cards can apply a cleanly matched replacement in view mode and show the resulting Applied state.
 - Suggestion cards can reject proposals, preserve Applied or Dismissed decisions when reopened, and surface the next actionable revision to the user and agent.
+- Suggestion cards can apply replacements directly in edit mode with undo and autosave support.
 
 ### Changed
 

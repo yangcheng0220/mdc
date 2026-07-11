@@ -34,6 +34,7 @@ import { CmdK } from "./CmdK.js";
 import { Comments, type SidebarView } from "./Comments.js";
 import { ConfirmDialog } from "./ConfirmDialog.js";
 import type { PendingComment } from "./commentData.js";
+import type { Suggestion } from "../../src/threads.js";
 import { Doc } from "./Doc.js";
 import { Settings } from "./Settings.js";
 import { DocBanner } from "./DocBanner.js";
@@ -614,8 +615,24 @@ export function App() {
     [activeFile, user, comments],
   );
   const onApplySuggestion = useCallback(
-    async (threadId: string, suggestionId: string) => {
+    async (threadId: string, suggestionId: string, suggestion: Suggestion) => {
       if (!activeFile) return "error" as const;
+      if (editingFiles.has(activeFile)) {
+        if (!editorRef.current?.applySuggestion(suggestion)) return "stale" as const;
+        try {
+          await postResolve(activeFile, threadId, user, "applied", suggestionId);
+          comments.reload();
+          reloadIndex();
+          toast.show({ title: "Suggestion applied", meta: "The editor was updated." });
+          return "applied" as const;
+        } catch {
+          toast.show({
+            title: "Couldn't resolve suggestion",
+            meta: "The editor change remains in the document.",
+          });
+          return "error" as const;
+        }
+      }
       try {
         const result = await postApplySuggestion(activeFile, threadId, suggestionId, user);
         const recent = lastWritten.current.get(activeFile) ?? [];
@@ -634,7 +651,7 @@ export function App() {
         return "error" as const;
       }
     },
-    [activeFile, comments, reloadIndex, toast, user],
+    [activeFile, comments, editingFiles, reloadIndex, toast, user],
   );
   const onDismissSuggestion = useCallback(
     async (threadId: string, suggestionId: string) => {

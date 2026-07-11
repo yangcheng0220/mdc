@@ -16,6 +16,8 @@
 import type { EditorView } from "@codemirror/view";
 import { EditorSelection } from "@codemirror/state";
 import type { ChangeSpec, EditorState, Line, TransactionSpec } from "@codemirror/state";
+import { findTargetStrict } from "../../../src/anchor.js";
+import type { Suggestion } from "../../../src/threads.js";
 
 export interface MarkdownCommand {
   id: string;
@@ -355,6 +357,29 @@ export const commands: MarkdownCommand[] = [
 export function runCommand(cmd: MarkdownCommand, view: EditorView): void {
   view.dispatch(cmd.build(view.state));
   view.focus();
+}
+
+export function buildSuggestionEdit(
+  state: EditorState,
+  suggestion: Suggestion,
+): TransactionSpec | null {
+  const match = findTargetStrict(suggestion.target, state.doc.toString());
+  if (match === null) return null;
+  return {
+    changes: {
+      from: match.startIdx,
+      to: match.startIdx + match.length,
+      insert: suggestion.replacement,
+    },
+  };
+}
+
+export function applySuggestionEdit(suggestion: Suggestion, view: EditorView): boolean {
+  const transaction = buildSuggestionEdit(view.state, suggestion);
+  if (transaction === null) return false;
+  view.dispatch(transaction);
+  view.focus();
+  return true;
 }
 
 /** Filter commands for the slash menu by a typed query (matches label, id, and keywords). */
