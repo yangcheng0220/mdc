@@ -215,6 +215,14 @@ describe("latestBodyByComment", () => {
 });
 
 describe("open-thread helpers", () => {
+  it("derives decided suggestion outcomes", () => {
+    const entries = [
+      { ...comment("c1", "q1"), suggestion: { target: { quote: "q1", context: { before: "", after: "" } }, replacement: "next" } },
+      event("resolved", { thread_id: "c1", suggestion_id: "c1", resolution: "applied" }),
+    ];
+    expect(sidecar.decidedSuggestions(entries).get("c1")).toBe("applied");
+  });
+
   it("openThreadsAwaitingAgent", () => {
     const entries = [
       comment("c1", "q1", USER), // awaiting agent
@@ -344,6 +352,63 @@ describe("buildEntries", () => {
         "claude",
       ),
     ).toThrow(/only valid on a comment or reply/);
+  });
+
+  it("validates qualified resolves and rejects a second decision", () => {
+    const suggestionEntry: Entry = {
+      ...comment("c1", "q1"),
+      suggestion: {
+        target: { quote: "old", context: { before: "", after: "" } },
+        replacement: "new",
+      },
+    };
+    const [decision] = sidecar.buildEntries(
+      [{ type: "resolved", thread_id: "c1", resolution: "applied", suggestion_id: "c1" }],
+      [suggestionEntry],
+      "f.md",
+      USER,
+    );
+    expect(decision).toMatchObject({
+      type: "resolved",
+      thread_id: "c1",
+      resolution: "applied",
+      suggestion_id: "c1",
+    });
+    expect(() =>
+      sidecar.buildEntries(
+        [{ type: "resolved", thread_id: "c1", resolution: "applied", suggestion_id: "c1" }],
+        [suggestionEntry, decision!],
+        "f.md",
+        USER,
+      ),
+    ).toThrow(/already decided/);
+  });
+
+  it("rejects a qualified resolve for a deleted or cross-thread suggestion", () => {
+    const suggestionEntry: Entry = {
+      ...reply("s1", "c1", "agent"),
+      suggestion: {
+        target: { quote: "old", context: { before: "", after: "" } },
+        replacement: "new",
+      },
+    };
+    const deleted = event("deleted", { comment_id: "s1" });
+    expect(() =>
+      sidecar.buildEntries(
+        [{ type: "resolved", thread_id: "c1", resolution: "applied", suggestion_id: "s1" }],
+        [comment("c1", "q1"), suggestionEntry, deleted],
+        "f.md",
+        USER,
+      ),
+    ).toThrow(/not a surviving suggestion/);
+    expect(() =>
+      sidecar.buildEntries(
+        [{ type: "resolved", thread_id: "c2", resolution: "applied", suggestion_id: "s1" }],
+        [comment("c1", "q1"), comment("c2", "q2"), suggestionEntry],
+        "f.md",
+        USER,
+      ),
+    ).toThrow(/not a surviving suggestion/);
   });
 
   it("empty body rejected", () => {

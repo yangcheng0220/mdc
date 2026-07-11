@@ -58,6 +58,8 @@ export interface Suggestion {
   replacement: string;
 }
 
+export type SuggestionResolution = "applied" | "dismissed";
+
 /** One JSONL line: a comment, a reply, or an event. */
 export interface Entry {
   id: string;
@@ -72,6 +74,8 @@ export interface Entry {
   comment_id?: string;
   anchor_snapshot?: { quote: string; line?: number | null };
   suggestion?: Suggestion;
+  resolution?: SuggestionResolution;
+  suggestion_id?: string;
   [key: string]: unknown;
 }
 
@@ -112,6 +116,21 @@ export function deletedCommentIds(entries: Entry[]): Set<string> {
     if (e.type === "deleted" && e.comment_id) ids.add(e.comment_id);
   }
   return ids;
+}
+
+/** Suggestion ids that have received a qualified resolve, in append order. */
+export function decidedSuggestions(entries: Entry[]): Map<string, SuggestionResolution> {
+  const decided = new Map<string, SuggestionResolution>();
+  for (const entry of entries) {
+    if (
+      entry.type === "resolved" &&
+      entry.suggestion_id &&
+      (entry.resolution === "applied" || entry.resolution === "dismissed")
+    ) {
+      decided.set(entry.suggestion_id, entry.resolution);
+    }
+  }
+  return decided;
 }
 
 /**

@@ -336,6 +336,33 @@
   color: var(--text-faint);
   font-style: italic;
 }
+.suggestion-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 7px 8px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+.suggestion-actions button {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 11px;
+  border: 1px solid var(--text);
+  border-radius: 5px;
+  color: var(--surface);
+  background: var(--text);
+  cursor: pointer;
+}
+.suggestion-actions button:hover:not(:disabled) {
+  opacity: 0.85;
+}
+.suggestion-actions button:disabled {
+  color: var(--text-faint);
+  background: transparent;
+  border-color: var(--border-mid);
+  cursor: default;
+}
 
 /* Pending (being-composed) comment — dashed border, inline composer. */
 .comment.pending {
@@ -842,6 +869,18 @@
 .resolved-by {
   font-size: 10.5px;
   color: var(--text-faint);
+}
+.suggestion-decision-chip {
+  box-sizing: border-box;
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-mid);
+  color: var(--text-muted);
+  background: transparent;
+  white-space: nowrap;
 }
 .resolved-unbtn {
   font-family: inherit;

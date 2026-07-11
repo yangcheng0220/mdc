@@ -19,6 +19,7 @@ import {
   fetchFolderSummary,
   fetchMovePreview,
   moveFile,
+  postApplySuggestion,
   postComment,
   type MovePreview,
   postDelete,
@@ -610,6 +611,29 @@ export function App() {
     },
     [activeFile, user, comments],
   );
+  const onApplySuggestion = useCallback(
+    async (threadId: string, suggestionId: string) => {
+      if (!activeFile) return "error" as const;
+      try {
+        const result = await postApplySuggestion(activeFile, threadId, suggestionId, user);
+        const recent = lastWritten.current.get(activeFile) ?? [];
+        recent.push(result.content);
+        if (recent.length > 8) recent.shift();
+        lastWritten.current.set(activeFile, recent);
+        setDocChanged(false);
+        setDocReloadNonce((nonce) => nonce + 1);
+        comments.reload();
+        reloadIndex();
+        toast.show({ title: "Suggestion applied", meta: "The document was updated." });
+        return "applied" as const;
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 409) return "stale" as const;
+        toast.show({ title: "Couldn't apply suggestion", meta: "The document was not changed." });
+        return "error" as const;
+      }
+    },
+    [activeFile, comments, reloadIndex, toast, user],
+  );
   const onUnresolve = useCallback(
     async (threadId: string) => {
       if (!activeFile) return;
@@ -1119,6 +1143,7 @@ export function App() {
             onCancelPending={cancelPending}
             onReply={onReply}
             onResolve={onResolve}
+            onApplySuggestion={onApplySuggestion}
             onUnresolve={onUnresolve}
             onEdit={onEdit}
             onRequestDelete={setDeleteTarget}

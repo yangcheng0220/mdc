@@ -23,7 +23,9 @@ import {
 import { dirname, join } from "node:path";
 import {
   VERSION,
+  applySuggestion,
   appendEntry,
+  buildEntries,
   countOpenThreads,
   deriveThreads,
   isEvent,
@@ -31,6 +33,7 @@ import {
   nowIso,
   readSidecar,
   topLevelComments,
+  ValidationError,
   pruneIfEmpty,
   type Anchor,
   type Entry,
@@ -661,6 +664,55 @@ export function createApp(cfg: ServerConfig): {
     };
     appendEntry(scPath, entry);
     return c.json(entry);
+  });
+
+  // --- suggestions: apply --------------------------------------------------
+  app.post("/api/suggestions/apply", async (c) => {
+    const file = requireQuery(c, "file");
+    const { mdPath, scPath } = resolveFile(cfg.root, state.index, file);
+    const body = await c.req.json<{
+      thread_id?: string;
+      suggestion_id?: string;
+      author?: string;
+    }>();
+    if (!body.thread_id || !body.suggestion_id || !body.author) {
+      throw new HttpError(400, "thread_id, suggestion_id, and author required");
+    }
+
+    const entries = readSidecar(scPath);
+    let decision: Entry;
+    try {
+      const prepared = buildEntries(
+        [{
+          type: "resolved",
+          thread_id: body.thread_id,
+          resolution: "applied",
+          suggestion_id: body.suggestion_id,
+        }],
+        entries,
+        baseName(mdPath),
+        body.author,
+      );
+      decision = prepared[0]!;
+    } catch (error) {
+      if (error instanceof ValidationError) throw new HttpError(400, error.message);
+      throw error;
+    }
+
+    const suggestion = entries.find((entry) => entry.id === body.suggestion_id)!.suggestion!;
+    const rawText = readFileSync(mdPath, "utf8");
+    const applied = applySuggestion(rawText, suggestion);
+    if (!applied.ok) {
+      throw new HttpError(409, "suggestion target no longer matches the document");
+    }
+
+    writeFileSync(mdPath, applied.content, "utf8");
+    appendEntry(scPath, decision);
+    return c.json({
+      content: applied.content,
+      version: fileVersion(applied.content),
+      entry: decision,
+    });
   });
 
   app.post("/api/comments/resolve-system", async (c) => {
