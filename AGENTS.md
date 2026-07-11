@@ -56,6 +56,7 @@ Update these docs in the same change that alters what they describe — each is 
 
 - **`.mdc.toml.example`** — whenever a section is added or changed in `.mdc.toml` handling.
 - **`docs/mini-app-guide.md`** — whenever the `window.mdc` bridge, manifest format, sandbox limits, or trust model changes. It ships to users.
+- **`docs/agent-setup.md`** — whenever the `mdc` CLI surface or the review-loop contract changes (commands, flags, watch/hand-off semantics, what an agent does with a thread). It ships to users via `mdc setup` and is the agent's operating manual.
 - **`DESIGN.md`** — whenever a UI change introduces visual vocabulary the doc doesn't already name (a color semantic, token recipe, or component pattern); reuse-only changes need no update. Litmus: after the change, the next agent could build a matching UI from `DESIGN.md` alone.
 
 ## Skill config
