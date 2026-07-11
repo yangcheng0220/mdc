@@ -27,7 +27,7 @@ Authorship is **not** a color: comment marks are one rust regardless of author. 
 
 **No hardcoded chromatic values outside `tokens.css`.** Every color in a style rule is a token or a `color-mix()` derivation of one. (Documented exceptions below.)
 
-Derived washes use `color-mix(in srgb, var(--base) N%, transparent)` with these rungs:
+Derived washes use `color-mix(in srgb, var(--base) N%, transparent)` with these rungs. Diff tints are the exception: `--diff-*-tint` mixes with `var(--surface)` so the tint stays legible on both themes.
 
 | Rung | % | Used for |
 |---|---|---|
@@ -94,6 +94,7 @@ For UI that isn't a shared component, match the established look rather than inv
 
 - **Segmented control** — `pane-switcher`/`pane-tab` vocabulary (nav panes, dashboard filter); the compact view/edit toggle (`.mode-toggle`) is a sibling recipe of the same family. Labels may carry counts — the control doubles as the summary; don't add a separate summary line.
 - **Quiet outline chip** — one recipe (11px / 600 / 1px 8px padding / `--border-mid` / radius 8): dashboard status chips, the orphaned tag. Meaning via border/text color only; a filled chip is not a variant of this pattern.
+- **Primary button** — solid `--text` background with `--surface` text, compact pill geometry: Hand off, composer submits, `ConfirmDialog` `.primary`, app-trust Run, and affirmative suggestion actions. Pair with the existing neutral outline-cancel treatment when an adjacent action should stay quieter.
 - **Parenthetical state** — file-level state ("doc deleted") is a red uppercase parenthetical beside the name, not a chip; the right column belongs to row status.
 - **Cards** — comment/thread cards: `--surface`, 1px `--border`, radius 8, wash shadows; flash = 2px rust outline.
 - **Composers** — the reply form and new-comment form share one family; extend it, don't fork it.

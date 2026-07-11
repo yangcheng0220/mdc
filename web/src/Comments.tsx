@@ -11,7 +11,14 @@
  */
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { decidedSuggestions, type Entry, type Suggestion } from "../../src/threads.js";
+import {
+  actionableSuggestion,
+  decidedSuggestions,
+  type Entry,
+  type Suggestion,
+  type SuggestionResolution,
+} from "../../src/threads.js";
+import { findTargetStrict } from "../../src/anchor.js";
 import type { DisplayThread, PendingComment } from "./commentData.js";
 import type { CommentAnchorY } from "./commentLines.js";
 import { fmtTime, resolveEventsByThread } from "./commentData.js";
@@ -74,6 +81,7 @@ function stackItems(items: HTMLElement[], list: HTMLElement, start = 6): number 
 export function Comments({
   threads,
   entries,
+  rawContent,
   orphanIds,
   user,
   overlayRoot,
@@ -88,6 +96,7 @@ export function Comments({
   onReply,
   onResolve,
   onApplySuggestion,
+  onDismissSuggestion,
   onUnresolve,
   onEdit,
   onRequestDelete,
@@ -99,6 +108,8 @@ export function Comments({
 }: {
   threads: DisplayThread[];
   entries: Entry[];
+  /** Current raw markdown used to preflight actionable suggestion targets. */
+  rawContent: string | null;
   /** Top-level ids of open threads whose anchor quote isn't in the current doc. */
   orphanIds: string[];
   user: string;
@@ -122,6 +133,7 @@ export function Comments({
     threadId: string,
     suggestionId: string,
   ) => Promise<ApplySuggestionOutcome>;
+  onDismissSuggestion: (threadId: string, suggestionId: string) => Promise<void>;
   onUnresolve: (threadId: string) => void;
   onEdit: (commentId: string, body: string) => void;
   onRequestDelete: (commentId: string) => void;
@@ -288,11 +300,14 @@ export function Comments({
                   onReply={onReply}
                   onResolve={onResolve}
                   onApplySuggestion={onApplySuggestion}
+                  onDismissSuggestion={onDismissSuggestion}
                   onEdit={onEdit}
                   onRequestDelete={onRequestDelete}
                   reposition={reposition}
                   orphaned={orphanSet.has(t.top.id)}
                   decisions={decisions}
+                  actionable={actionableSuggestion(entries, t.top.id)}
+                  rawContent={rawContent}
                   editing={editing}
                   onEditModeClick={editing ? onEditModeCardClick : undefined}
                 />
@@ -474,11 +489,14 @@ function ThreadCard({
   onReply,
   onResolve,
   onApplySuggestion,
+  onDismissSuggestion,
   onEdit,
   onRequestDelete,
   reposition,
   orphaned,
   decisions,
+  actionable,
+  rawContent,
   editing: editMode,
   onEditModeClick,
 }: {
@@ -491,11 +509,14 @@ function ThreadCard({
     threadId: string,
     suggestionId: string,
   ) => Promise<ApplySuggestionOutcome>;
+  onDismissSuggestion: (threadId: string, suggestionId: string) => Promise<void>;
   onEdit: (commentId: string, body: string) => void;
   onRequestDelete: (commentId: string) => void;
   reposition: () => void;
   orphaned: boolean;
   decisions: Map<string, "applied" | "dismissed">;
+  actionable: Entry | undefined;
+  rawContent: string | null;
   editing: boolean;
   onEditModeClick?: (commentId: string) => void;
 }) {
@@ -506,6 +527,7 @@ function ThreadCard({
   const [replyBody, setReplyBody] = useState("");
   const [editing, setEditing] = useState(false);
   const [applyingId, setApplyingId] = useState<string | null>(null);
+  const [dismissingId, setDismissingId] = useState<string | null>(null);
   const [staleSuggestionId, setStaleSuggestionId] = useState<string | null>(null);
   const replyRef = useRef<HTMLTextAreaElement>(null);
 
@@ -517,17 +539,30 @@ function ThreadCard({
   }, [replying]);
 
   const showReplies = !foldable || expanded;
-  const latestSuggestionId = [top, ...replies]
-    .filter((entry) => !entry.deleted && entry.suggestion !== undefined)
-    .at(-1)?.id;
+  const actionableSuggestionId = actionable?.id;
+  const targetStale =
+    actionable?.suggestion !== undefined &&
+    rawContent !== null &&
+    findTargetStrict(actionable.suggestion.target, rawContent) === null;
   const decidingOrphaned =
-    orphaned || (latestSuggestionId !== undefined && staleSuggestionId === latestSuggestionId);
+    orphaned ||
+    targetStale ||
+    (actionableSuggestionId !== undefined && staleSuggestionId === actionableSuggestionId);
 
   const acceptSuggestion = async (suggestionId: string) => {
     setApplyingId(suggestionId);
     const outcome = await onApplySuggestion(top.id, suggestionId);
     if (outcome === "stale") setStaleSuggestionId(suggestionId);
     setApplyingId(null);
+  };
+
+  const dismissSuggestion = async (suggestionId: string) => {
+    setDismissingId(suggestionId);
+    try {
+      await onDismissSuggestion(top.id, suggestionId);
+    } finally {
+      setDismissingId(null);
+    }
   };
 
   const submitReply = () => {
@@ -590,14 +625,18 @@ function ThreadCard({
       {!top.deleted && top.suggestion && (
         <SuggestionBlock
           suggestion={top.suggestion}
-          superseded={top.id !== latestSuggestionId}
+          superseded={!decisions.has(top.id) && top.id !== actionableSuggestionId}
+          decision={decisions.get(top.id)}
           onAccept={
-            top.id === latestSuggestionId && !decisions.has(top.id) && !editMode
+            top.id === actionableSuggestionId && !editMode && !decidingOrphaned
               ? () => acceptSuggestion(top.id)
               : undefined
           }
+          onReject={
+            top.id === actionableSuggestionId ? () => dismissSuggestion(top.id) : undefined
+          }
           accepting={applyingId === top.id}
-          acceptDisabled={decidingOrphaned}
+          rejecting={dismissingId === top.id}
         />
       )}
 
@@ -612,14 +651,22 @@ function ThreadCard({
                 onEdit={onEdit}
                 onRequestDelete={onRequestDelete}
                 reposition={reposition}
-                superseded={r.suggestion !== undefined && r.id !== latestSuggestionId}
+                superseded={
+                  r.suggestion !== undefined &&
+                  !decisions.has(r.id) &&
+                  r.id !== actionableSuggestionId
+                }
+                decision={decisions.get(r.id)}
                 onAccept={
-                  r.id === latestSuggestionId && !decisions.has(r.id) && !editMode
+                  r.id === actionableSuggestionId && !editMode && !decidingOrphaned
                     ? () => acceptSuggestion(r.id)
                     : undefined
                 }
+                onReject={
+                  r.id === actionableSuggestionId ? () => dismissSuggestion(r.id) : undefined
+                }
                 accepting={applyingId === r.id}
-                acceptDisabled={decidingOrphaned}
+                rejecting={dismissingId === r.id}
               />
             ))}
           {foldable && (
@@ -692,9 +739,11 @@ function Reply({
   onRequestDelete,
   reposition,
   superseded,
+  decision,
   onAccept,
+  onReject,
   accepting,
-  acceptDisabled,
+  rejecting,
 }: {
   reply: DisplayThread["replies"][number];
   user: string;
@@ -702,9 +751,11 @@ function Reply({
   onRequestDelete: (commentId: string) => void;
   reposition: () => void;
   superseded: boolean;
+  decision?: SuggestionResolution;
   onAccept?: () => void;
+  onReject?: () => void;
   accepting: boolean;
-  acceptDisabled: boolean;
+  rejecting: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   useEffect(() => reposition(), [editing, reposition]);
@@ -736,9 +787,11 @@ function Reply({
         <SuggestionBlock
           suggestion={reply.suggestion}
           superseded={superseded}
+          decision={decision}
           onAccept={onAccept}
+          onReject={onReject}
           accepting={accepting}
-          acceptDisabled={acceptDisabled}
+          rejecting={rejecting}
         />
       )}
     </div>
@@ -760,15 +813,19 @@ function DiffText({ parts, kind }: { parts: DiffPart[]; kind: "add" | "del" }) {
 function SuggestionBlock({
   suggestion,
   superseded,
+  decision,
   onAccept,
+  onReject,
   accepting = false,
-  acceptDisabled = false,
+  rejecting = false,
 }: {
   suggestion: Suggestion;
   superseded: boolean;
+  decision?: SuggestionResolution;
   onAccept?: () => void;
+  onReject?: () => void;
   accepting?: boolean;
-  acceptDisabled?: boolean;
+  rejecting?: boolean;
 }) {
   const diff = shapeSuggestionDiff(suggestion.target.quote, suggestion.replacement);
   return (
@@ -778,7 +835,13 @@ function SuggestionBlock({
     >
       <div className="suggestion-heading">
         <span>Suggestion</span>
-        {superseded && <span className="suggestion-state">superseded</span>}
+        {decision ? (
+          <span className="suggestion-decision-chip">
+            {decision === "applied" ? "Applied" : "Dismissed"}
+          </span>
+        ) : superseded ? (
+          <span className="suggestion-state">superseded</span>
+        ) : null}
       </div>
       <div className="suggestion-side current">
         <div className="suggestion-label">Current</div>
@@ -796,11 +859,23 @@ function SuggestionBlock({
           )}
         </div>
       </div>
-      {onAccept && (
+      {(onAccept || onReject) && (
         <div className="suggestion-actions">
-          <button type="button" onClick={onAccept} disabled={acceptDisabled || accepting}>
-            {accepting ? "Applying…" : "Accept"}
-          </button>
+          {onReject && (
+            <button
+              className="suggestion-reject"
+              type="button"
+              onClick={onReject}
+              disabled={accepting || rejecting}
+            >
+              {rejecting ? "Dismissing…" : "Reject"}
+            </button>
+          )}
+          {onAccept && (
+            <button type="button" onClick={onAccept} disabled={accepting || rejecting}>
+              {accepting ? "Applying…" : "Accept"}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -900,8 +975,10 @@ function ResolvedItem({
           {by}
           {when}
         </span>
-        {ev?.resolution === "applied" && (
-          <span className="suggestion-decision-chip">Applied</span>
+        {(ev?.resolution === "applied" || ev?.resolution === "dismissed") && (
+          <span className="suggestion-decision-chip">
+            {ev.resolution === "applied" ? "Applied" : "Dismissed"}
+          </span>
         )}
         <button
           className="resolved-unbtn"

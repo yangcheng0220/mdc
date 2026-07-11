@@ -32,6 +32,7 @@ import {
 } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import {
+  actionableSuggestion,
   deriveThreads,
   decidedSuggestions,
   deletedCommentIds,
@@ -282,6 +283,11 @@ export function buildEntries(
           if (decidedSuggestions(allKnown).has(suggestionId)) {
             throw new ValidationError(
               `entry ${i}: suggestion_id '${suggestionId}' is already decided`,
+            );
+          }
+          if (actionableSuggestion(allKnown, threadId)?.id !== suggestionId) {
+            throw new ValidationError(
+              `entry ${i}: suggestion_id '${suggestionId}' is not the actionable suggestion in thread '${threadId}'`,
             );
           }
           event.resolution = resolution as SuggestionResolution;
