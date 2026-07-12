@@ -12,7 +12,13 @@
 import { spawn, execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { cpSync, existsSync, readdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
-import { allIndexesOf, captureContext, findAnchorMatch, lineOfOffset } from "./anchor.js";
+import {
+  allIndexesOf,
+  captureContext,
+  findAnchorMatch,
+  lineOfOffset,
+  stripMdMapped,
+} from "./anchor.js";
 import { VERSION } from "./index.js";
 import { basename, dirname, join, relative, resolve as resolvePath, isAbsolute } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -249,6 +255,15 @@ function cmdComment(file: string, opts: CommentOpts): number {
     // (before + quote + after must be unique) so the anchor orphans rather
     // than silently drifting when that copy is edited away.
     anchor.context = { before: opts.contextBefore ?? "", after: opts.contextAfter ?? "" };
+  }
+  if (
+    opts.suggest !== undefined &&
+    opts.target === undefined &&
+    stripMdMapped(opts.quote).text !== opts.quote
+  ) {
+    console.warn(
+      "warning: --quote contains Markdown syntax; use rendered text for --quote and exact raw Markdown for --target, or the margin anchor may orphan",
+    );
   }
   const suggestion = buildSuggestion(
     mdPath,
