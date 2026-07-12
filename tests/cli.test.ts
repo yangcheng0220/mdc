@@ -32,6 +32,7 @@ beforeEach(() => {
     stdout += a.join(" ") + "\n";
   });
   vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "warn").mockImplementation(() => {});
 });
 
 afterEach(() => {
@@ -126,6 +127,24 @@ describe("cli", () => {
     const thread = JSON.parse(getOut);
     expect(thread.entries[0].suggestion).toEqual(entry.suggestion);
     expect(thread.suggestion_state).toEqual({ actionable: tid, decided: {} });
+  });
+
+  it("warns when a default suggestion target contains Markdown syntax", async () => {
+    writeFileSync(md, "# Doc\n\nA **bold** phrase.\n");
+    const [code] = await run([
+      "--author",
+      "claude",
+      "comment",
+      md,
+      "--quote",
+      "**bold**",
+      "--body",
+      "tighten this",
+      "--suggest",
+      "bright",
+    ]);
+    expect(code).toBe(0);
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("--target"));
   });
 
   it("accepts an empty suggestion replacement", async () => {

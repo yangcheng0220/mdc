@@ -9,6 +9,7 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 ### Changed
 
 ### Fixed
+- Suggestions remain applicable when their display anchor is orphaned but the raw target is still current; the CLI warns when a default target contains Markdown syntax.
 
 ## [0.2.0] - 2026-07-11
 
