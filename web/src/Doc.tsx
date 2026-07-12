@@ -233,10 +233,16 @@ export function Doc({
     const ro = new ResizeObserver(schedule);
     ro.observe(root);
     window.addEventListener("resize", schedule);
+    // Scrollable code blocks move their text without resizing the document, so
+    // repaint on descendant scrolls as well as page scrolls.
+    window.addEventListener("scroll", schedule);
+    document.addEventListener("scroll", schedule, true);
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
       window.removeEventListener("resize", schedule);
+      window.removeEventListener("scroll", schedule);
+      document.removeEventListener("scroll", schedule, true);
     };
   }, [html, onHighlightClick, onHighlightsRepositioned]);
 

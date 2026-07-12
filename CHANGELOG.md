@@ -9,6 +9,7 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 ### Changed
 
 ### Fixed
+- Comment highlights stay within horizontally scrolling code blocks at narrow document widths.
 
 ## [0.2.0] - 2026-07-11
 
