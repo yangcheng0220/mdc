@@ -1,5 +1,7 @@
 # Suggestions — tech spec
 
+Two bounded slices. **v1 (shipped, #6–#11)**: the Approach / Test plan / Issues / Risks sections below describe the code as it stands. **Inline preview (planned)**: its own approach, test plan, and issues sections at the end — `to-tickets` operates on those only.
+
 Implements [PRODUCT.md](./PRODUCT.md). Grammar decisions are settled in `docs/adr/0001` (self-contained strict targets) and `docs/adr/0002` (qualified resolves, decided-at-most-once); vocabulary per `CONTEXT.md`.
 
 ## Approach
@@ -61,3 +63,40 @@ Dependency-ordered tracer bullets (each blocked by the previous unless noted):
 
 - **Apply writes user files.** Mitigated by strict locate (never writes on a non-unique or recovered match), the synchronous read-splice-write handler, and `applySuggestion` being pure and unit-tested before the route exists.
 - **Watcher echo on accept**: the apply write fires `doc-changed` to every client; the accepting client suppresses via `lastWritten`, others correctly get the reload banner. Verify the suppression path live — it's the exact surface under change.
+
+---
+
+# Inline preview slice (planned)
+
+Implements the "Inline preview" flow + the card-collapse bullet in [PRODUCT.md](./PRODUCT.md). No sidecar-grammar, CLI, or server changes — this is a rendering/interaction layer over shipped v1; accept/reject reuse the existing `onApplySuggestion`/`onDismissSuggestion` handlers (`web/src/App.tsx`).
+
+## Approach — view mode
+
+- **Locating the affected blocks.** Lex the doc body with `marked`'s lexer (already the renderer, `web/src/render/markdown.ts:53`) and find the top-level token(s) whose raw offsets overlap the target span located by `findTargetStrict` against the raw content the card already holds (`rawContent` plumbing from #16). Top-level tokens map ~1:1 to the body container's element children (skip `space` tokens); a new pure `blockRangeForSpan(body, start, end)` returns `{tokenRange, elementRange, rawSlice}` and is the unit-testable heart. **If alignment can't be established, don't guess — fall back to no preview with the card diff expanded** (mirror of prefer-orphan).
+- **The swap never mutates doc DOM** (same philosophy as `render/highlights.ts` overlay rects): pinning hides the affected elements (class, not removal) and inserts a preview container sibling; closing removes the container and unhides. Preview HTML comes from `renderMarkdown` over the current raw slice and the proposed raw slice (`applySuggestion` output cut to the same expanded block range).
+- **Word-level marking inside the preview container only** (our DOM — wrapping is safe there): when current/proposed block counts and types pair 1:1, mark per-block via `presentableDiff` (reuse `shapeSuggestionDiff`, `web/src/suggestionDiff.ts`) mapped onto text nodes with the NodeSpan-walk pattern from `highlights.ts`; otherwise render the PRODUCT fallback — stacked current→proposed blocks in place, `--diff-del`/`--diff-add` washes.
+- **Preview state** is one `previewedSuggestionId` owned by `App.tsx` (single preview invariant for free); the highlight overlay hides the previewed thread's rects while pinned (they'd float over hidden blocks) and recomputes on close. Esc handling follows the DESIGN.md escape-layering rule; scroll restore captures the doc container's `scrollTop` at pin and restores it on close.
+- **Floating decision chip**: dark-chip family (`--toast-*`, like `.sel-toolbar`, `web/src/styles/comments.css:52`) anchored to the preview container — Accept / Reject / close calling the same App handlers; buttons disable while a decision is in flight, mirroring the card.
+- **Card collapse** in `SuggestionBlock` (`web/src/Comments.tsx`): when `shapeSuggestionDiff` output exceeds ~10 rendered lines, render a one-line `+X −Y` summary + **Preview in doc** button (the pin action). Threshold constant, not config.
+- **Mark-click**: the existing mark-click→card jump (`DESIGN.md` comment-mark grammar) additionally pins the preview when the thread has an actionable suggestion. Superseded/decided/orphaned: no preview entry points (PRODUCT).
+
+## Approach — edit mode
+
+- Pinning dispatches the existing `buildSuggestionEdit` transaction (`web/src/editor/commands.ts`) with a `unifiedMergeView` extension enabled (original = pre-edit buffer; `@codemirror/merge` already a dep and exports `acceptChunk`/`rejectChunk`), so the change renders as an inline chunk with merge controls at the target. Accept = keep the edit + post the qualified resolve (the #17 path, minus the re-splice); Reject/close = `rejectChunk`/undo, buffer restored.
+- **Autosave is suspended while a preview is pinned** — otherwise the previewed-but-undecided edit persists to disk. Closing (or navigating away, or the session ending) reverts the buffer first. This is the risky bullet; see Risks.
+- **One diff vocabulary across merge views**: theme `unifiedMergeView` *and* the existing conflict `MergeView` (`web/src/Editor.tsx:17`) with the `--diff-add`/`--diff-del` token families — CodeMirror's default ins/del colors would otherwise put a second diff color language on the same surface. The conflict flow's *interaction* (theirs-vs-yours takeover) stays as is; only its colors join the system. DESIGN.md's diff rows gain the merge views in "used for" in the same change.
+
+## Test plan — inline preview
+
+- Vitest: `blockRangeForSpan` alignment on fixture docs (paragraph, list, heading, fenced code, html block, doc-boundary targets; `space`-token skipping; misalignment → null). Pairing decision (1:1 word-marked vs stacked fallback) as a pure function. Collapse threshold logic.
+- Live (both builds, disposable workspace, 8099): pin from card → affected paragraph swaps to marked diff, rest of doc untouched; pin from the in-text mark → same + card focused; Esc → doc and scroll position restored (verify on a doc long enough to scroll); structure-changing suggestion (adds a heading) → stacked fallback; decide from the floating chip → same outcome as the card path (file written / thread resolved); section-sized suggestion → card shows `+X −Y` summary and Preview in doc. Edit mode: pin → inline chunk at target, ⌘Z/close restores, disk unchanged while pinned (check mtime/content), Accept → resolve + autosave resumes.
+- Sign-off: `npm run typecheck:web && npm run typecheck && npm test && npm run knip`.
+
+## Issues — inline preview
+
+_To be filled by `to-tickets` for this slice._
+
+## Risks — inline preview
+
+- **Token↔DOM alignment drift** (custom heading renderer, html blocks): mitigated by the unit-tested `blockRangeForSpan`, the no-guess fallback to card-only, and never mutating doc DOM.
+- **Edit-mode autosave suspension**: a crash/tab-close while pinned must not leave the previewed edit on disk — the edit exists only in the buffer and autosave is off, so worst case is losing the pin, never persisting an undecided change. Verify by killing the tab mid-preview.
