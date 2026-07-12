@@ -10,6 +10,7 @@ import { indentUnit } from "@codemirror/language";
 import { Prec } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { markdownHighlightExtension } from "./markdownHighlight.js";
+import { transientSetextHeadingExtension } from "./transientSetextHeading.js";
 
 export function createEditorExtensions(openPalette: () => void) {
   return [
@@ -18,7 +19,7 @@ export function createEditorExtensions(openPalette: () => void) {
     // bullets but flattens numbered lists in the renderer). Tab/continuation
     // both follow this unit, so nesting in the editor matches view mode.
     indentUnit.of("    "),
-    markdown(),
+    markdown({ extensions: transientSetextHeadingExtension }),
     markdownHighlightExtension,
     // Prec.highest so ⌘/ opens the palette instead of CodeMirror's default
     // Mod-/ = toggleComment (which otherwise shadows it). The shadowing is

@@ -1,10 +1,13 @@
-import { markdownLanguage } from "@codemirror/lang-markdown";
+import { markdown } from "@codemirror/lang-markdown";
 import { highlightingFor } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import { highlightTree, tags, type Tag } from "@lezer/highlight";
 import { describe, expect, it } from "vitest";
 import { createEditorExtensions } from "./extensions.js";
 import { markdownHighlightSpecs, markdownHighlightStyle } from "./markdownHighlight.js";
+import { transientSetextHeadingExtension } from "./transientSetextHeading.js";
+
+const editorMarkdownParser = markdown({ extensions: transientSetextHeadingExtension }).language.parser;
 
 const requiredTags = [
   tags.heading1,
@@ -78,7 +81,7 @@ describe("markdown editor highlighting", () => {
     ].join("\n");
     const ranges: Array<{ text: string; classes: string }> = [];
 
-    highlightTree(markdownLanguage.parser.parse(doc), markdownHighlightStyle, (from, to, classes) => {
+    highlightTree(editorMarkdownParser.parse(doc), markdownHighlightStyle, (from, to, classes) => {
       ranges.push({ text: doc.slice(from, to), classes });
     });
 
@@ -94,5 +97,32 @@ describe("markdown editor highlighting", () => {
     expect(ranges.some((range) => range.text === "-" && hasClass(range.classes, classFor(tags.processingInstruction)))).toBe(true);
     expect(ranges.some((range) => range.text.includes("fenced") && hasClass(range.classes, classFor(tags.monospace)))).toBe(true);
     expect(ranges.some((range) => range.text === "#" && hasClass(range.classes, classFor(tags.processingInstruction)))).toBe(true);
+  });
+
+  it.each(["text\n-", "text\n- "])("keeps a transient empty bullet out of setext heading styling: %j", (doc) => {
+    const ranges: Array<{ text: string; classes: string }> = [];
+    highlightTree(editorMarkdownParser.parse(doc), markdownHighlightStyle, (from, to, classes) => {
+      ranges.push({ text: doc.slice(from, to), classes });
+    });
+
+    expect(editorMarkdownParser.parse(doc).toString()).toBe("Document(Paragraph(ListMark))");
+    expect(ranges.some((range) => hasClass(range.classes, classFor(tags.heading2)))).toBe(false);
+    expect(ranges.some((range) => range.text === "-" && hasClass(range.classes, classFor(tags.processingInstruction)))).toBe(true);
+  });
+
+  it("keeps completed lists and setext headings aligned with their final Markdown shape", () => {
+    const listDoc = "text\n- x";
+    const listTree = editorMarkdownParser.parse(listDoc);
+    expect(listTree.toString()).toContain("BulletList");
+
+    const headingDoc = "text\n---";
+    const headingTree = editorMarkdownParser.parse(headingDoc);
+    expect(headingTree.toString()).toBe("Document(SetextHeading2(HeaderMark))");
+
+    const headingRanges: Array<{ text: string; classes: string }> = [];
+    highlightTree(headingTree, markdownHighlightStyle, (from, to, classes) => {
+      headingRanges.push({ text: headingDoc.slice(from, to), classes });
+    });
+    expect(headingRanges.some((range) => hasClass(range.classes, classFor(tags.heading2)))).toBe(true);
   });
 });

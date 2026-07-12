@@ -47,6 +47,7 @@
     "@codemirror/view": "^6.43.1",
     "@hono/node-server": "^2.0.4",
     "@lezer/highlight": "^1.2.3",
+    "@lezer/markdown": "^1.6.4",
     "@uiw/react-codemirror": "^4.25.10",
     "chokidar": "^5.0.0",
     "commander": "^15.0.0",

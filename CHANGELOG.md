@@ -10,6 +10,7 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 
 ### Fixed
 - The packaged Kanban example now opens with starter columns and stores its first board beside the app.
+- Typing an empty bullet after a paragraph no longer makes the previous line appear as a heading in edit mode.
 
 ## [0.2.0] - 2026-07-11
 
