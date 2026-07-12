@@ -9,6 +9,7 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 ### Changed
 
 ### Fixed
+- The packaged Kanban example now opens with starter columns and stores its first board beside the app.
 
 ## [0.2.0] - 2026-07-11
 

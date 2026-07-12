@@ -308,6 +308,8 @@ describe("cli", () => {
     expect(code).toBe(0);
     const copied = readFileSync(join(dir, "apps", "kanban", "kanban.html"), "utf8");
     expect(copied).toContain("mdc-app:");
+    const starter = readFileSync(join(dir, "apps", "kanban", "boards", "main.md"), "utf8");
+    expect(starter).toBe("# Kanban\n\n## Backlog\n\n## In progress\n\n## Done\n");
 
     const [again] = await run(["example", "kanban", "--into", dir]);
     expect(again).toBe(1);
