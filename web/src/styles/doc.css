@@ -309,6 +309,32 @@
 .editor-merge-view .cm-mergeView {
   background: var(--surface);
 }
+/* Keep the conflict merge view on the same diff palette as suggestion cards
+   and previews: disk-only text is the removed side, while the editable buffer
+   is the added side. The merge package's defaults use a separate red/green
+   language, so override its line, text, and gutter marks here. */
+.editor-merge-view .cm-editor.cm-merge-a .cm-changedLine,
+.editor-merge-view .cm-editor.cm-merge-a .cm-deletedLine {
+  background: var(--diff-del-tint);
+  color: var(--diff-del);
+}
+.editor-merge-view .cm-editor.cm-merge-b .cm-changedLine,
+.editor-merge-view .cm-editor.cm-merge-b .cm-insertedLine {
+  background: var(--diff-add-tint);
+  color: var(--diff-add);
+}
+.editor-merge-view .cm-editor.cm-merge-a .cm-changedText {
+  background: color-mix(in srgb, var(--diff-del) 45%, transparent);
+}
+.editor-merge-view .cm-editor.cm-merge-b .cm-changedText {
+  background: color-mix(in srgb, var(--diff-add) 45%, transparent);
+}
+.editor-merge-view .cm-editor.cm-merge-a .cm-changedLineGutter {
+  background: var(--diff-del);
+}
+.editor-merge-view .cm-editor.cm-merge-b .cm-changedLineGutter {
+  background: var(--diff-add);
+}
 /* The per-chunk "take theirs" control between the panes — a custom-rendered
    button (straight arrow, neutral hover); the package positions it. */
 .editor-merge-view .cm-merge-revert {

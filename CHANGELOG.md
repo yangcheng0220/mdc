@@ -7,6 +7,7 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 ### Added
 
 ### Changed
+- Conflict merge views now use the shared teal/violet diff colors for added and removed text.
 
 ### Fixed
 - Comment highlights stay within horizontally scrolling code blocks at narrow document widths.
