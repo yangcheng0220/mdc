@@ -6,7 +6,7 @@ How to build a trusted HTML mini app that reads and writes workspace files throu
 
 A single `.html` file that mdc runs inside a sandboxed iframe with scripts enabled. It cannot touch the filesystem directly — every read/write goes through `window.mdc`, which mdc mediates and permission-checks. Untrusted HTML stays view-only (no scripts); an app only runs once the user explicitly trusts it.
 
-A packaged example ships in the box: `mdc example kanban` copies a markdown-backed Kanban board into the workspace's `apps/` folder. Read its source alongside this guide — it's a working instance of everything below.
+A packaged example ships in the box: `mdc example kanban` copies a markdown-backed Kanban board into the workspace's `apps/` folder. Its board files live beside the app in `apps/kanban/boards/<board>.md`, and the example includes `boards/main.md` with empty Backlog, In progress, and Done columns so a fresh copy opens as a working board. Read its source alongside this guide — it's a working instance of everything below.
 
 ## The one-file recipe
 
