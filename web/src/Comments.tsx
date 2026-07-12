@@ -543,8 +543,7 @@ function ThreadCard({
     actionable?.suggestion !== undefined &&
     rawContent !== null &&
     findTargetStrict(actionable.suggestion.target, rawContent) === null;
-  const decidingOrphaned =
-    orphaned ||
+  const decisionBlocked =
     targetStale ||
     (actionableSuggestionId !== undefined && staleSuggestionId === actionableSuggestionId);
 
@@ -574,7 +573,7 @@ function ThreadCard({
 
   return (
     <div
-      className={`comment ${roleClass(top.author, user)}${decidingOrphaned ? " is-orphaned" : ""}`}
+      className={`comment ${roleClass(top.author, user)}${orphaned ? " is-orphaned" : ""}`}
       data-sidebar-id={top.id}
       style={{ position: "absolute", left: 8, right: 20, top: 0, visibility: "hidden" }}
       title="Click to jump to highlighted text"
@@ -590,7 +589,7 @@ function ThreadCard({
         <span className={`avatar ${roleClass(top.author, user)}`}>{initials(top.author, user)}</span>
         <span className="author">{top.author}</span>
         <span className="time">{fmtTime(top.timestamp)}</span>
-        {decidingOrphaned && <span className="comment-orphan-tag">orphaned</span>}
+        {orphaned && <span className="comment-orphan-tag">orphaned</span>}
         {!top.deleted && (
           <>
             <button
@@ -627,7 +626,7 @@ function ThreadCard({
           superseded={!decisions.has(top.id) && top.id !== actionableSuggestionId}
           decision={decisions.get(top.id)}
           onAccept={
-            top.id === actionableSuggestionId && !decidingOrphaned
+            top.id === actionableSuggestionId && !decisionBlocked
               ? () => acceptSuggestion(top.id, top.suggestion!)
               : undefined
           }
@@ -657,7 +656,7 @@ function ThreadCard({
                 }
                 decision={decisions.get(r.id)}
                 onAccept={
-                  r.id === actionableSuggestionId && !decidingOrphaned
+                  r.id === actionableSuggestionId && !decisionBlocked
                     ? () => acceptSuggestion(r.id, r.suggestion!)
                     : undefined
                 }

@@ -119,11 +119,46 @@ export function paintHighlightRects(
   }
 }
 
-interface LineRect {
+export interface LineRect {
   left: number;
   right: number;
   top: number;
   bottom: number;
+}
+
+/** Return the visible part of a line rect, or null when it is fully clipped. */
+export function clipLineRect(line: LineRect, clip: DOMRect): LineRect | null {
+  const clipped = {
+    left: Math.max(line.left, clip.left),
+    right: Math.min(line.right, clip.right),
+    top: Math.max(line.top, clip.top),
+    bottom: Math.min(line.bottom, clip.bottom),
+  };
+  return clipped.left < clipped.right && clipped.top < clipped.bottom ? clipped : null;
+}
+
+function clippingRectForRange(range: Range): DOMRect | null {
+  // The overlay is a sibling of the document, so it does not inherit an
+  // ancestor's overflow clip. Mirror the nearest clip in viewport coordinates
+  // before converting the result into overlay-local coordinates.
+  let element =
+    range.commonAncestorContainer instanceof HTMLElement
+      ? range.commonAncestorContainer
+      : range.commonAncestorContainer.parentElement;
+  while (element) {
+    const style = getComputedStyle(element);
+    if (style.overflowX !== "visible" || style.overflowY !== "visible") {
+      const rect = element.getBoundingClientRect();
+      return new DOMRect(
+        rect.left + element.clientLeft,
+        rect.top + element.clientTop,
+        element.clientWidth,
+        element.clientHeight,
+      );
+    }
+    element = element.parentElement;
+  }
+  return null;
 }
 
 /**
@@ -156,9 +191,9 @@ function mergeRectsByLine(range: Range): LineRect[] {
 }
 
 /**
- * Build one positioned `<div>` per visual line of `range`, in the overlay's local
- * coordinate space (`base` = the overlay's own client rect). Shared by committed
- * highlights and the pending-composition preview.
+ * Build one positioned `<div>` per visible visual line of `range`, in the overlay's
+ * local coordinate space (`base` = the overlay's own client rect). Shared by
+ * committed highlights and the pending-composition preview.
  */
 export function rangeRectNodes(
   range: Range,
@@ -166,13 +201,16 @@ export function rangeRectNodes(
   className: string,
 ): HTMLDivElement[] {
   const out: HTMLDivElement[] = [];
+  const clip = clippingRectForRange(range);
   for (const line of mergeRectsByLine(range)) {
+    const visibleLine = clip ? clipLineRect(line, clip) : line;
+    if (!visibleLine) continue;
     const rect = document.createElement("div");
     rect.className = className;
-    rect.style.left = `${line.left - base.left}px`;
-    rect.style.top = `${line.top - base.top}px`;
-    rect.style.width = `${line.right - line.left}px`;
-    rect.style.height = `${line.bottom - line.top}px`;
+    rect.style.left = `${visibleLine.left - base.left}px`;
+    rect.style.top = `${visibleLine.top - base.top}px`;
+    rect.style.width = `${visibleLine.right - visibleLine.left}px`;
+    rect.style.height = `${visibleLine.bottom - visibleLine.top}px`;
     out.push(rect);
   }
   return out;
