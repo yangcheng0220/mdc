@@ -29,6 +29,9 @@
 .hl-rect.flash {
   animation: hl-flash 1.2s ease-out;
 }
+.hl-rect.preview-hidden {
+  display: none;
+}
 @keyframes hl-flash {
   0% {
     background: color-mix(in srgb, var(--comment) 45%, transparent);
@@ -331,6 +334,49 @@
 .suggestion-change.add {
   background: var(--diff-add-tint);
   color: var(--diff-add);
+}
+
+/* Pinned view-mode suggestion preview. The original top-level blocks stay in
+   place as untouched nodes but leave layout while their rendered sibling owns
+   the reading surface. Matching block structures use one merged word diff;
+   changed structure uses stacked current/proposed washes. */
+.doc .suggestion-preview-source {
+  display: none !important;
+}
+.doc .suggestion-preview .suggestion-change {
+  white-space: pre-wrap;
+}
+.doc .suggestion-preview-stacked {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.doc .suggestion-preview-side {
+  padding: 10px 12px;
+  border-radius: 6px;
+}
+.doc .suggestion-preview-side.current {
+  border-left: 3px solid var(--diff-del);
+  background: var(--diff-del-tint);
+}
+.doc .suggestion-preview-side.proposed {
+  border-left: 3px solid var(--diff-add);
+  background: var(--diff-add-tint);
+}
+.doc .suggestion-preview-label {
+  margin-bottom: 6px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.doc .suggestion-preview-side > :last-child {
+  margin-bottom: 0;
+}
+.doc .suggestion-preview-deleted {
+  color: var(--text-faint);
+  font-style: italic;
 }
 .suggestion-deleted {
   color: var(--text-faint);

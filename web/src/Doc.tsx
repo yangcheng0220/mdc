@@ -18,6 +18,8 @@ import { paintHighlightRects, resolveAnchorRanges } from "./render/highlights.js
 import { removeSelectionToolbar, showSelectionToolbar } from "./render/selection.js";
 import { combo, matchEvent } from "./keymap.js";
 import type { DisplayThread } from "./commentData.js";
+import type { Suggestion } from "../../src/threads.js";
+import { buildPinnedPreview } from "./render/inlinePreview.js";
 
 interface DocState {
   status: "empty" | "loading" | "ready" | "error";
@@ -25,7 +27,15 @@ interface DocState {
   /** File lines the frontmatter spans — used to detect comments anchored there. */
   fmLineCount?: number;
   html?: string;
+  body?: string;
+  rawContent?: string;
   error?: string;
+}
+
+export interface SuggestionPreviewRequest {
+  threadId: string;
+  suggestionId: string;
+  suggestion: Suggestion;
 }
 
 export function Doc({
@@ -42,6 +52,9 @@ export function Doc({
   pendingActive,
   reloadNonce,
   onContentLoaded,
+  suggestionPreview,
+  onCloseSuggestionPreview,
+  onSuggestionPreviewUnavailable,
 }: {
   file: string | null;
   paths: string[];
@@ -71,6 +84,9 @@ export function Doc({
   /** Reports both the rendered body and raw markdown so outline and suggestion
    *  preflight checks share the content from this fetch. */
   onContentLoaded?: (body: string, rawContent: string) => void;
+  suggestionPreview: SuggestionPreviewRequest | null;
+  onCloseSuggestionPreview: () => void;
+  onSuggestionPreviewUnavailable: (suggestionId: string) => void;
 }) {
   const [state, setState] = useState<DocState>({ status: "empty" });
   // Tracks which file the current content belongs to, so a banner reload (same
@@ -86,6 +102,18 @@ export function Doc({
   // highlight rects. Kept separate from the body so re-injecting the doc HTML
   // never wipes the highlights, and so highlights never mutate the doc tree.
   const overlayRef = useRef<HTMLDivElement>(null);
+  const previewThreadId = useRef<string | null>(null);
+
+  const syncPreviewHighlight = () => {
+    const overlay = overlayRef.current;
+    const threadId = previewThreadId.current;
+    if (!overlay || !threadId) return;
+    for (const rect of overlay.querySelectorAll<HTMLElement>(
+      `.hl-rect[data-comment-id="${CSS.escape(threadId)}"]`,
+    )) {
+      rect.classList.add("preview-hidden");
+    }
+  };
 
   // Latest callbacks held in a ref so the inject effect can call them WITHOUT
   // listing them as deps. They're event handlers (some are inline/unstable from
@@ -170,6 +198,64 @@ export function Doc({
     // the same render), so highlights aren't re-derived here.
   }, [html, file, paths]);
 
+  // A view-mode suggestion preview swaps complete rendered blocks without
+  // replacing or wrapping the document subtree. The source nodes only receive a
+  // temporary hiding class; cleanup removes the sibling preview and restores the
+  // exact scroll offset captured before the swap.
+  useEffect(() => {
+    if (!suggestionPreview || state.status !== "ready") return;
+    const root = bodyRef.current;
+    const body = state.body;
+    const rawContent = state.rawContent;
+    if (!root || body === undefined || rawContent === undefined) return;
+    const built = buildPinnedPreview(root, body, rawContent, suggestionPreview.suggestion);
+    if (!built) {
+      onSuggestionPreviewUnavailable(suggestionPreview.suggestionId);
+      return;
+    }
+
+    const first = built.sourceElements[0];
+    if (!first) {
+      onSuggestionPreviewUnavailable(suggestionPreview.suggestionId);
+      return;
+    }
+    const scrollRoot = document.scrollingElement;
+    const scrollTop = scrollRoot?.scrollTop ?? window.scrollY;
+    first.before(built.container);
+    for (const element of built.sourceElements) element.classList.add("suggestion-preview-source");
+    if (scrollRoot) scrollRoot.scrollTop = scrollTop;
+    else window.scrollTo({ top: scrollTop });
+
+    previewThreadId.current = suggestionPreview.threadId;
+    syncPreviewHighlight();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      onCloseSuggestionPreview();
+    };
+    const onMouseDown = (event: MouseEvent) => {
+      const target = event.target;
+      if (target instanceof Node && built.container.contains(target)) return;
+      onCloseSuggestionPreview();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    document.addEventListener("mousedown", onMouseDown);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("mousedown", onMouseDown);
+      built.container.remove();
+      for (const element of built.sourceElements) element.classList.remove("suggestion-preview-source");
+      previewThreadId.current = null;
+      for (const rect of overlayRef.current?.querySelectorAll<HTMLElement>(".hl-rect.preview-hidden") ?? []) {
+        rect.classList.remove("preview-hidden");
+      }
+      if (scrollRoot) scrollRoot.scrollTop = scrollTop;
+      else window.scrollTo({ top: scrollTop });
+    };
+  }, [suggestionPreview, state, onCloseSuggestionPreview, onSuggestionPreviewUnavailable]);
+
   // Re-render mermaid when the resolved theme flips: its SVG bakes the theme in at
   // render time, so a light↔dark toggle leaves a stale-themed diagram until the
   // doc is re-fetched. Skip the first run (the inject effect already rendered for
@@ -201,6 +287,7 @@ export function Doc({
     }
     resolved.current = resolveAnchorRanges(root, threads);
     paintHighlightRects(overlay, resolved.current.highlights, onHighlightClick);
+    syncPreviewHighlight();
     onAnchorsPainted(root, overlay, resolved.current.orphans);
   }, [threads, html, onHighlightClick, onAnchorsPainted]);
 
@@ -218,6 +305,7 @@ export function Doc({
     let raf = 0;
     const repaint = () => {
       paintHighlightRects(overlay, resolved.current.highlights, onHighlightClick);
+      syncPreviewHighlight();
       // The rects moved — tell the parent so the comment cards re-measure against
       // the FRESH rect positions, otherwise cards read stale highlight Ys after a
       // resize/panel-toggle and stop tracking the doc. This is reposition-only (no
@@ -324,7 +412,14 @@ export function Doc({
         if (cancelled) return;
         loadedFile.current = file;
         const { rows, body, lineCount } = parseFrontmatter(doc.content);
-        setState({ status: "ready", fmRows: rows, fmLineCount: lineCount, html: renderMarkdown(body) });
+        setState({
+          status: "ready",
+          fmRows: rows,
+          fmLineCount: lineCount,
+          html: renderMarkdown(body),
+          body,
+          rawContent: doc.content,
+        });
         cb.current.onContentLoaded?.(body, doc.content);
       })
       .catch((e: unknown) => {
