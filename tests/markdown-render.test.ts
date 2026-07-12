@@ -35,6 +35,11 @@ Text below.
     expect(html).not.toContain("</iframe>");
   });
 
+  it("keeps completed lists and setext headings in their CommonMark shapes", () => {
+    expect(renderMarkdown("text\n- x")).toContain("<ul>");
+    expect(renderMarkdown("text\n---")).toContain('<h2 id="text">text</h2>');
+  });
+
   it("requires double tildes for strikethrough", () => {
     const html = renderMarkdown(`~~struck~~
 
