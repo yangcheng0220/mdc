@@ -18,8 +18,8 @@ Every hue carries exactly one meaning. Never repurpose a status hue as a neutral
 | Red | `--danger` | Destructive actions and irrecoverable state ("doc deleted") | Emphasis |
 | Muted red-brown | `--broken`, `--broken-border` | Broken references and render errors | Destructive actions (that's `--danger`) |
 | Green | `--success` | Live/connected state (agent presence) | Confirmation flourishes |
-| Teal | `--diff-add`, `--diff-add-tint` | Text added by a suggestion | Live state, confirmation |
-| Violet | `--diff-del`, `--diff-del-tint` | Current text removed by a suggestion | Errors, destructive actions |
+| Teal | `--diff-add`, `--diff-add-tint` | Text added by a suggestion; text present only on the right (added) side of a conflict merge view | Live state, confirmation |
+| Violet | `--diff-del`, `--diff-del-tint` | Current text removed by a suggestion; text present only on the left (removed) side of a conflict merge view | Errors, destructive actions |
 
 Authorship is **not** a color: comment marks are one rust regardless of author. Who wrote what shows on the cards (avatars: agent = rust-tinted, user = neutral) and in words, never as a second mark hue.
 
