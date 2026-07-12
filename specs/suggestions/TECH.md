@@ -1,6 +1,6 @@
 # Suggestions — tech spec
 
-Two bounded slices. **v1 (shipped, #6–#11)**: the Approach / Test plan / Issues / Risks sections below describe the code as it stands. **Inline preview (planned)**: its own approach, test plan, and issues sections at the end — `to-tickets` operates on those only.
+Two bounded slices. **v1 (shipped, #6–#11)**: the Approach / Test plan / Issues / Risks sections below describe the code as it stands. **Inline preview (in progress)**: its own approach, test plan, and risks at the end; tickets in *Issues — inline preview*.
 
 Implements [PRODUCT.md](./PRODUCT.md). Grammar decisions are settled in `docs/adr/0001` (self-contained strict targets) and `docs/adr/0002` (qualified resolves, decided-at-most-once); vocabulary per `CONTEXT.md`.
 
@@ -94,7 +94,14 @@ Implements the "Inline preview" flow + the card-collapse bullet in [PRODUCT.md](
 
 ## Issues — inline preview
 
-_To be filled by `to-tickets` for this slice._
+Tracer bullets (parent #19); #28 and #29 start immediately, the rest follow their edges:
+
+1. [#28](https://github.com/yangcheng0220/mdc/issues/28) — pin a suggestion's diff in the doc (view mode) — the tracer bullet
+2. [#29](https://github.com/yangcheng0220/mdc/issues/29) — merge views speak the design system's diff vocabulary
+3. [#30](https://github.com/yangcheng0220/mdc/issues/30) — floating decision chip at the pinned preview (blocked by #28)
+4. [#31](https://github.com/yangcheng0220/mdc/issues/31) — mark-click entry + threshold-collapsed card diffs (blocked by #28)
+5. [#32](https://github.com/yangcheng0220/mdc/issues/32) — edit-mode preview as an inline merge chunk (blocked by #28, #29)
+6. [#33](https://github.com/yangcheng0220/mdc/issues/33) — README + screenshot (HITL; blocked by #30, #31, #32)
 
 ## Risks — inline preview
 
