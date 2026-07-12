@@ -2,7 +2,7 @@
 
 ## Summary
 
-An agent can attach a proposed edit — a concrete replacement for a quoted span — to a comment or reply. The user reads it as a diff on the thread card and accepts (the file updates), rejects (nothing changes), or replies to refine. The propose → decide → apply loop stays inside mdc instead of detouring through chat.
+An agent can attach a proposed edit — a concrete replacement for a quoted span — to a comment or reply. The user reads it as a diff on the thread card or previewed in place in the doc, and accepts (the file updates), rejects (nothing changes), or replies to refine. The propose → decide → apply loop stays inside mdc instead of detouring through chat.
 
 ## Flows
 
@@ -18,6 +18,7 @@ An agent can attach a proposed edit — a concrete replacement for a quoted span
 ### User reviews and decides (thread card, both modes)
 
 - The card shows the suggestion as a diff: the current text and the proposed text as stacked blocks, with word-level changes highlighted inside each. Below it: **Accept**, **Reject**, and the standard reply composer.
+- A card diff longer than a threshold (~10 lines) collapses to a one-line change summary plus a **Preview in doc** affordance — the card stays a compact index; reading a big change happens in the doc (next flow).
 - **Accept** (view mode): the file is written immediately, the doc re-renders in place — no reload banner, no confirm dialog (the diff is the confirmation surface). The thread resolves and its card shows an Applied indicator.
 - **Accept** (edit mode): the change lands in the editor buffer as if the user typed it — undoable with ⌘Z, persisted by autosave. Thread resolves the same way.
 - **Reject**: the thread resolves, the doc is untouched, the card shows a Dismissed indicator. Resolved suggestion cards always show which of the two happened.
@@ -25,6 +26,15 @@ An agent can attach a proposed edit — a concrete replacement for a quoted span
 - A suggestion is decided at most once. Reopening a decided thread reopens the conversation only — the file is never reverted, and the decided suggestion keeps its Applied/Dismissed indicator without regaining Accept/Reject. Re-proposing (or accepting after all, following a dismissal) takes a fresh suggestion in the thread.
 - **Refine**: the user replies in the composer; the thread flips back to awaiting-agent and surfaces to the agent like any pending thread. The agent answers with a revised suggestion in the same thread, which becomes the actionable one.
 - A toast confirms Accept; Reject needs none.
+
+### Inline preview — reading the change in the doc
+
+- Clicking a suggestion card (or its **Preview in doc** affordance) pins a preview: the affected doc text swaps to a diff rendering in place — deleted text struck through, inserted text highlighted, surrounding doc untouched. Clicking the suggestion's in-text mark does the same *and* focuses the card (extends today's mark-click-jumps-to-card grammar).
+- One preview at a time; pinning another suggestion's preview replaces the current one. **Esc** or clicking outside the previewed region closes it and restores the doc exactly as it was — including scroll position, so a structure-changing preview never leaves the user somewhere else in the document.
+- A pinned preview carries a small floating action chip anchored to the previewed region — **Accept**, **Reject**, and close — the same actions as the card, so a long diff is decidable where it was just read, without scrolling back to the margin.
+- When the replacement changes block structure (splits a paragraph, adds or removes a heading), the preview falls back to stacked current → proposed blocks rendered in place; word-level marking applies only where the structure survives.
+- Only the actionable suggestion previews. Superseded and decided suggestions keep their card diff (no preview); an orphaned suggestion has no locatable target, so its card offers no preview and keeps the orphaned treatment.
+- **Edit mode**: focusing a suggestion card shows the change as an inline diff chunk in the editor buffer at the target, with the same accept/reject affordances; closing the preview restores the buffer untouched. Behavior otherwise mirrors view mode.
 
 ### Stale and conflicting suggestions
 
@@ -34,7 +44,9 @@ An agent can attach a proposed edit — a concrete replacement for a quoted span
 
 ## Out of scope
 
-- Inline in-doc diff preview (rendering the change in place in the doc) — the thread card is the v1 review surface; inline preview is the planned follow-up.
+- Always-on tracked-changes rendering (every pending suggestion permanently visible in the doc) — previews are on-demand and one at a time; the doc stays a clean reading surface.
+- Previewing superseded, decided, or orphaned suggestions — the card diff is their record.
+- Collapsing long prose comment bodies — unrelated polish; thread folding already exists.
 - Human-authored suggestions from the browser — v1 is agent-proposes, human-decides.
 - Accepting or rejecting via CLI — deciding is deliberately a human act in the browser.
 - Pure insertions at a point (no quoted span) — the agent quotes adjacent text and includes it in the replacement.
