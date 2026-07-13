@@ -12,13 +12,18 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
-import { EditorState, RangeSetBuilder } from "@codemirror/state";
+import { Compartment, EditorState, RangeSetBuilder } from "@codemirror/state";
 import { Decoration, EditorView, GutterMarker, gutter, type DecorationSet } from "@codemirror/view";
-import { MergeView } from "@codemirror/merge";
+import { MergeView, acceptChunk, getChunks, rejectChunk, unifiedMergeView } from "@codemirror/merge";
 import type { Suggestion } from "../../src/threads.js";
 import { MarkdownPalette } from "./MarkdownPalette.js";
 import { DocBanner } from "./DocBanner.js";
-import { applySuggestionEdit, runCommand, type MarkdownCommand } from "./editor/commands.js";
+import {
+  applySuggestionEdit,
+  buildSuggestionEdit,
+  runCommand,
+  type MarkdownCommand,
+} from "./editor/commands.js";
 import { createEditorExtensions } from "./editor/extensions.js";
 import { ApiError, fetchDoc, saveDoc } from "./api.js";
 import { parseFrontmatter } from "./render/frontmatter.js";
@@ -27,6 +32,13 @@ import type { CommentAnchorY, CommentLine } from "./commentLines.js";
 const AUTOSAVE_MS = 600;
 
 type SaveState = "idle" | "saving" | "saved" | "error" | "conflict";
+type SuggestionResolution = "applied" | "dismissed";
+
+interface EditSuggestionPreview {
+  threadId: string;
+  suggestionId: string;
+  original: string;
+}
 
 /** Conflict flow: a rejected save (or an external change signal) pauses
  *  autosave and shows the banner; "review" swaps the editor for a side-by-side
@@ -36,6 +48,10 @@ type Conflict = "none" | "banner" | "review";
 export interface EditorHandle {
   scrollToComment: (commentId: string) => void;
   applySuggestion: (suggestion: Suggestion) => boolean;
+  previewSuggestion: (threadId: string, suggestionId: string, suggestion: Suggestion) => boolean;
+  acceptSuggestionPreview: (threadId: string, suggestionId: string) => boolean;
+  dismissSuggestionPreview: (threadId: string, suggestionId: string) => boolean;
+  closeSuggestionPreview: () => void;
   /** The file changed on disk under a live editing session (externally
    *  detected, e.g. by the doc-changed watcher) — enter the conflict flow. */
   notifyExternalChange: () => void;
@@ -177,6 +193,12 @@ export const Editor = forwardRef<EditorHandle, {
   /** Reports the editor's scroll container element — the base the card layout
    *  measures anchor offsets against. Null on unmount. */
   onEditorHostChange?: (host: HTMLElement | null) => void;
+  /** Records the qualified decision made by an edit-mode preview chunk. */
+  onSuggestionPreviewDecision?: (
+    threadId: string,
+    suggestionId: string,
+    resolution: SuggestionResolution,
+  ) => void;
 }>(function Editor({
   file,
   commentLines = [],
@@ -187,6 +209,7 @@ export const Editor = forwardRef<EditorHandle, {
   onRawContentChange,
   onCommentAnchorYsChange,
   onEditorHostChange,
+  onSuggestionPreviewDecision,
 }, ref) {
   const [text, setText] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -212,6 +235,18 @@ export const Editor = forwardRef<EditorHandle, {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const fileRef = useRef(file);
+  fileRef.current = file;
+  const suggestionPreviewCompartment = useRef(new Compartment());
+  const suggestionPreviewExtension = useMemo(
+    () => suggestionPreviewCompartment.current.of([]),
+    [],
+  );
+  const suggestionPreviewRef = useRef<EditSuggestionPreview | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const closingSuggestionPreview = useRef(false);
+  const suggestionDecisionCb = useRef(onSuggestionPreviewDecision);
+  suggestionDecisionCb.current = onSuggestionPreviewDecision;
   // Latest callbacks, read without re-binding effects.
   const dirtyCb = useRef(onDirtyChange);
   dirtyCb.current = onDirtyChange;
@@ -304,8 +339,22 @@ export const Editor = forwardRef<EditorHandle, {
     });
   }, []);
   const extensions = useMemo(
-    () => [...baseExtensions, commentHighlight, commentGutter, commentClickHandler, commentAnchorReporter],
-    [baseExtensions, commentHighlight, commentGutter, commentClickHandler, commentAnchorReporter],
+    () => [
+      ...baseExtensions,
+      commentHighlight,
+      commentGutter,
+      commentClickHandler,
+      commentAnchorReporter,
+      suggestionPreviewExtension,
+    ],
+    [
+      baseExtensions,
+      commentHighlight,
+      commentGutter,
+      commentClickHandler,
+      commentAnchorReporter,
+      suggestionPreviewExtension,
+    ],
   );
 
   const flashCommentMarker = (commentId: string) => {
@@ -317,14 +366,133 @@ export const Editor = forwardRef<EditorHandle, {
     }, 1300);
   };
 
+  const clearSuggestionPreview = () => {
+    if (!suggestionPreviewRef.current) return;
+    suggestionPreviewRef.current = null;
+    setPreviewOpen(false);
+    viewRef.current?.dispatch({
+      effects: suggestionPreviewCompartment.current.reconfigure([]),
+    });
+  };
+
+  const closeSuggestionPreview = () => {
+    const preview = suggestionPreviewRef.current;
+    const view = viewRef.current;
+    if (!preview || !view) return;
+    closingSuggestionPreview.current = true;
+    if (view.state.doc.toString() !== preview.original) {
+      rejectChunk(view, getChunks(view.state)?.chunks[0]?.fromB);
+      if (view.state.doc.toString() !== preview.original) {
+        view.dispatch({
+          changes: { from: 0, to: view.state.doc.length, insert: preview.original },
+        });
+      }
+    }
+    closingSuggestionPreview.current = false;
+    clearSuggestionPreview();
+  };
+
+  const settleSuggestionPreview = (
+    resolution: SuggestionResolution,
+    chunkHandled = false,
+  ): boolean => {
+    const preview = suggestionPreviewRef.current;
+    const view = viewRef.current;
+    if (!preview || !view) return false;
+    if (!chunkHandled) {
+      const chunk = getChunks(view.state)?.chunks[0];
+      const pos = chunk?.fromB;
+      const changed = resolution === "applied" ? acceptChunk(view, pos) : rejectChunk(view, pos);
+      if (!changed) return false;
+    }
+    const { threadId, suggestionId } = preview;
+    clearSuggestionPreview();
+    if (resolution === "applied") queueAutosaveRef.current(view.state.doc.toString());
+    suggestionDecisionCb.current?.(threadId, suggestionId, resolution);
+    return true;
+  };
+
+  const previewSuggestion = (threadId: string, suggestionId: string, suggestion: Suggestion): boolean => {
+    if (conflictRef.current !== "none") return false;
+    if (suggestionPreviewRef.current) closeSuggestionPreview();
+    const view = viewRef.current;
+    if (!view) return false;
+    const original = view.state.doc.toString();
+    const transaction = buildSuggestionEdit(view.state, suggestion);
+    if (!transaction) return false;
+    const preview = { threadId, suggestionId, original };
+    suggestionPreviewRef.current = preview;
+    setPreviewOpen(true);
+    view.dispatch(transaction);
+    view.dispatch({
+      effects: suggestionPreviewCompartment.current.reconfigure(
+        unifiedMergeView({
+          original,
+          allowInlineDiffs: true,
+          mergeControls: (type, action) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = `cm-suggestion-${type}`;
+            button.textContent = type === "accept" ? "Accept" : "Reject";
+            button.addEventListener("mousedown", (event) => {
+              event.stopPropagation();
+              // Rejecting restores the original text, which otherwise looks
+              // like an undo to onChange and clears the preview before this
+              // control can record its qualified decision.
+              closingSuggestionPreview.current = type === "reject";
+              action(event);
+              closingSuggestionPreview.current = false;
+              settleSuggestionPreview(type === "accept" ? "applied" : "dismissed", true);
+            });
+            return button;
+          },
+        }),
+      ),
+    });
+    return true;
+  };
+
+  const previewSuggestionRef = useRef(previewSuggestion);
+  previewSuggestionRef.current = previewSuggestion;
+  const closeSuggestionPreviewRef = useRef(closeSuggestionPreview);
+  closeSuggestionPreviewRef.current = closeSuggestionPreview;
+
+  useEffect(() => {
+    if (!previewOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      closeSuggestionPreviewRef.current();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [previewOpen]);
+
   useImperativeHandle(ref, () => ({
     applySuggestion(suggestion) {
       const view = viewRef.current;
       return view !== null && applySuggestionEdit(suggestion, view);
     },
+    previewSuggestion(threadId, suggestionId, suggestion) {
+      return previewSuggestionRef.current(threadId, suggestionId, suggestion);
+    },
+    acceptSuggestionPreview(threadId, suggestionId) {
+      const preview = suggestionPreviewRef.current;
+      if (!preview || preview.threadId !== threadId || preview.suggestionId !== suggestionId) return false;
+      return settleSuggestionPreview("applied");
+    },
+    dismissSuggestionPreview(threadId, suggestionId) {
+      const preview = suggestionPreviewRef.current;
+      if (!preview || preview.threadId !== threadId || preview.suggestionId !== suggestionId) return false;
+      return settleSuggestionPreview("dismissed");
+    },
+    closeSuggestionPreview() {
+      closeSuggestionPreviewRef.current();
+    },
     notifyExternalChange() {
       if (conflictRef.current !== "none") return; // already in the flow
       if (timer.current) clearTimeout(timer.current);
+      closeSuggestionPreviewRef.current();
       setConflict("banner");
       setSaveState("conflict");
     },
@@ -472,6 +640,7 @@ export const Editor = forwardRef<EditorHandle, {
     return () => {
       if (flashTimer.current) clearTimeout(flashTimer.current);
       if (anchorReportRaf.current !== null) cancelAnimationFrame(anchorReportRaf.current);
+      closeSuggestionPreviewRef.current();
       editorHostCb.current?.(null);
     };
   }, []);
@@ -509,6 +678,7 @@ export const Editor = forwardRef<EditorHandle, {
     return () => {
       cancelled = true;
       if (timer.current) clearTimeout(timer.current);
+      closeSuggestionPreviewRef.current();
     };
   }, [file]);
 
@@ -516,18 +686,31 @@ export const Editor = forwardRef<EditorHandle, {
     setText(value);
     contentCb.current?.(parseFrontmatter(value).body); // live outline tracks typing
     rawContentCb.current?.(value);
+    // A pinned suggestion is a temporary buffer state. Undoing it restores the
+    // original text and releases the merge decorations without saving.
+    const preview = suggestionPreviewRef.current;
+    if (preview) {
+      if (!closingSuggestionPreview.current && value === preview.original) clearSuggestionPreview();
+      return;
+    }
     // While conflicted, typing keeps the buffer but never writes — a save now
     // would clobber the very change the conflict flagged. Resolution resumes.
     if (conflictRef.current !== "none") return;
+    queueAutosaveRef.current(value);
+  };
+
+  const queueAutosave = (value: string) => {
+    if (conflictRef.current !== "none" || suggestionPreviewRef.current) return;
     setSaveState("saving");
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       if (conflictRef.current !== "none") return; // conflict landed mid-debounce
+      if (suggestionPreviewRef.current) return;
       // Tell the parent what we're writing BEFORE the request goes out — the
       // watcher's doc-changed event can outrun the PUT response, and the echo
       // must already be recognizable when it lands.
-      dirtyCb.current?.(file, false, value);
-      saveDoc(file, value, versionRef.current ?? undefined)
+      dirtyCb.current?.(fileRef.current, false, value);
+      saveDoc(fileRef.current, value, versionRef.current ?? undefined)
         .then((version) => {
           versionRef.current = version;
           setSaveState("saved");
@@ -542,6 +725,8 @@ export const Editor = forwardRef<EditorHandle, {
         });
     }, AUTOSAVE_MS);
   };
+  const queueAutosaveRef = useRef(queueAutosave);
+  queueAutosaveRef.current = queueAutosave;
 
   if (loadError) {
     return <div className="editor-status editor-error">{loadError}</div>;

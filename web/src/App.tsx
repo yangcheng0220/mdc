@@ -347,6 +347,7 @@ export function App() {
     setConfirmEnd(false);
     const session = presence.active;
     if (!session || session.file !== activeFile) return;
+    editorRef.current?.closeSuggestionPreview();
     try {
       await postHandoffDone(session.sessionId, "done");
       toast.show({ title: "Session ended", meta: "The agent will stop watching." });
@@ -500,6 +501,13 @@ export function App() {
       return next;
     });
   }, []);
+  const onEditModeSuggestionPreview = useCallback(
+    (threadId: string, suggestionId: string, suggestion: Suggestion) => {
+      editorRef.current?.scrollToComment(threadId);
+      editorRef.current?.previewSuggestion(threadId, suggestionId, suggestion);
+    },
+    [],
+  );
   const onCommentCardClick = useCallback((commentId: string) => {
     editorRef.current?.scrollToComment(commentId);
   }, []);
@@ -622,6 +630,9 @@ export function App() {
       setSuggestionPreview(null);
       if (!activeFile) return "error" as const;
       if (editingFiles.has(activeFile)) {
+        if (editorRef.current?.acceptSuggestionPreview(threadId, suggestionId)) {
+          return "applied" as const;
+        }
         if (!editorRef.current?.applySuggestion(suggestion)) return "stale" as const;
         try {
           await postResolve(activeFile, threadId, user, "applied", suggestionId);
@@ -661,11 +672,34 @@ export function App() {
     async (threadId: string, suggestionId: string) => {
       setSuggestionPreview(null);
       if (!activeFile) return;
+      if (editingFiles.has(activeFile) && editorRef.current?.dismissSuggestionPreview(threadId, suggestionId)) {
+        return;
+      }
       await postResolve(activeFile, threadId, user, "dismissed", suggestionId);
       comments.reload();
       reloadIndex();
     },
-    [activeFile, comments, reloadIndex, user],
+    [activeFile, comments, editingFiles, reloadIndex, user],
+  );
+  const onEditModeSuggestionDecision = useCallback(
+    async (threadId: string, suggestionId: string, resolution: "applied" | "dismissed") => {
+      if (!activeFile) return;
+      try {
+        await postResolve(activeFile, threadId, user, resolution, suggestionId);
+        comments.reload();
+        reloadIndex();
+        toast.show({
+          title: resolution === "applied" ? "Suggestion applied" : "Suggestion dismissed",
+          meta: resolution === "applied" ? "The editor change will be saved." : "The editor was restored.",
+        });
+      } catch {
+        toast.show({
+          title: "Couldn't resolve suggestion",
+          meta: resolution === "applied" ? "The editor change remains in the document." : "The editor was restored.",
+        });
+      }
+    },
+    [activeFile, comments, reloadIndex, toast, user],
   );
   const onPreviewSuggestion = useCallback(
     (threadId: string, suggestionId: string, suggestion: Suggestion) => {
@@ -1148,6 +1182,7 @@ export function App() {
                 onRawContentChange={setEditorRawContent}
                 onCommentAnchorYsChange={onCommentAnchorYsChange}
                 onEditorHostChange={setEditorHost}
+                onSuggestionPreviewDecision={onEditModeSuggestionDecision}
               />
             ) : (
               <Doc
@@ -1208,6 +1243,7 @@ export function App() {
             editAnchorYs={editorAnchorYs}
             editorHost={editorHost}
             onEditModeCardClick={onCommentCardClick}
+            onEditModeSuggestionPreview={onEditModeSuggestionPreview}
           />
         </div>
       </aside>

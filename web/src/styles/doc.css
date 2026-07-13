@@ -272,6 +272,49 @@
 .editor-cm .cm-line {
   padding: 0;
 }
+/* Edit-mode suggestion previews use CodeMirror's unified merge surface. The
+   live buffer is the proposed side; the deleted widget is the current side.
+   Keep both sides on the shared teal/violet diff vocabulary. */
+.editor-cm .cm-editor.cm-merge-b .cm-changedLine,
+.editor-cm .cm-inlineChangedLine {
+  background: var(--diff-add-tint);
+  color: var(--diff-add);
+}
+.editor-cm .cm-editor.cm-merge-b .cm-changedText {
+  background: color-mix(in srgb, var(--diff-add) 45%, transparent);
+}
+.editor-cm .cm-deletedChunk {
+  padding: 6px 8px;
+  border-left: 3px solid var(--diff-del);
+  background: var(--diff-del-tint);
+  color: var(--diff-del);
+}
+.editor-cm .cm-deletedChunk .cm-deletedText {
+  background: color-mix(in srgb, var(--diff-del) 45%, transparent);
+}
+.editor-cm .cm-suggestion-accept,
+.editor-cm .cm-suggestion-reject {
+  margin: 0 2px;
+  padding: 3px 8px;
+  border: 1px solid currentColor;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.editor-cm .cm-suggestion-accept {
+  color: var(--diff-add);
+  background: var(--diff-add-tint);
+}
+.editor-cm .cm-suggestion-reject {
+  color: var(--diff-del);
+  background: var(--diff-del-tint);
+}
+.editor-cm .cm-suggestion-accept:hover,
+.editor-cm .cm-suggestion-reject:hover {
+  background: var(--surface);
+}
 /* Save status sits inline in the toolbar, just after the filename breadcrumb. */
 .toolbar-savestate {
   font-size: 11px;
