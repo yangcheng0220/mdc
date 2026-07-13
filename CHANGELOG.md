@@ -6,6 +6,7 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 
 ### Added
 - Suggestion cards in view mode now pin a reversible in-document diff preview, with a stacked fallback when the proposed edit changes block structure.
+- Pinned suggestion previews now include floating Accept, Reject, and Close actions for deciding changes in place.
 - Large suggestion diffs now collapse to a line summary with a Preview in doc action, and clicking a suggestion mark opens its in-document preview.
 
 ### Changed
