@@ -62,7 +62,7 @@ import { usePresence } from "./usePresence.js";
 import { useTabs } from "./useTabs.js";
 import { useToast } from "./useToast.js";
 
-type CardFocus = { threadId: string; view: SidebarView; nonce: number };
+type CardFocus = { threadId: string; view: SidebarView; nonce: number; scroll: boolean };
 
 export function App() {
   const [activeFile, setActiveFile] = useActiveFile();
@@ -398,12 +398,17 @@ export function App() {
     orphanIds: [] as string[],
   });
   const focusThreadCard = useCallback(
-    (commentId: string, viewOverride?: SidebarView) => {
+    (commentId: string, viewOverride?: SidebarView, options?: { scroll?: boolean }) => {
       const thread = comments.threads.find((t) => t.top.id === commentId);
       const view = viewOverride ?? (thread?.resolved ? "resolved" : "open");
       if (panels.sidebarCollapsed) panels.toggle("sidebar");
       if (sidebarView !== view) setSidebarView(view);
-      setCardFocus((prev) => ({ threadId: commentId, view, nonce: (prev?.nonce ?? 0) + 1 }));
+      setCardFocus((prev) => ({
+        threadId: commentId,
+        view,
+        nonce: (prev?.nonce ?? 0) + 1,
+        scroll: options?.scroll ?? true,
+      }));
     },
     [comments.threads, panels, sidebarView],
   );
@@ -430,6 +435,12 @@ export function App() {
         suggestionId: suggestionEntry.id,
         suggestion: suggestionEntry.suggestion,
       });
+      // The pinned preview owns the page position (it scrolls itself into view
+      // if needed) — centring the card too would yank the text the user just
+      // clicked. Flash the card without scrolling, same net effect as a card
+      // click: pin shown, card indicated.
+      focusThreadCardRef.current(commentId, "open", { scroll: false });
+      return;
     }
     focusThreadCardRef.current(commentId, "open");
   }, []);
@@ -445,7 +456,7 @@ export function App() {
       if (!panels.sidebarCollapsed && sidebarView === cardFocus.view) {
         const card = document.querySelector<HTMLElement>(selector);
         if (card && card.offsetParent !== null) {
-          card.scrollIntoView({ behavior: "smooth", block: "center" });
+          if (cardFocus.scroll) card.scrollIntoView({ behavior: "smooth", block: "center" });
           card.classList.remove("flash");
           requestAnimationFrame(() => card.classList.add("flash"));
           setTimeout(() => {
