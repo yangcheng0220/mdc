@@ -12,13 +12,18 @@
 
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
-import { EditorState, RangeSetBuilder } from "@codemirror/state";
-import { Decoration, EditorView, GutterMarker, gutter, type DecorationSet } from "@codemirror/view";
-import { MergeView } from "@codemirror/merge";
+import { Compartment, EditorState, RangeSetBuilder } from "@codemirror/state";
+import { Decoration, EditorView, WidgetType, type DecorationSet } from "@codemirror/view";
+import { MergeView, acceptChunk, getChunks, rejectChunk, unifiedMergeView } from "@codemirror/merge";
 import type { Suggestion } from "../../src/threads.js";
 import { MarkdownPalette } from "./MarkdownPalette.js";
 import { DocBanner } from "./DocBanner.js";
-import { applySuggestionEdit, runCommand, type MarkdownCommand } from "./editor/commands.js";
+import {
+  applySuggestionEdit,
+  buildSuggestionEdit,
+  runCommand,
+  type MarkdownCommand,
+} from "./editor/commands.js";
 import { createEditorExtensions } from "./editor/extensions.js";
 import { ApiError, fetchDoc, saveDoc } from "./api.js";
 import { parseFrontmatter } from "./render/frontmatter.js";
@@ -27,6 +32,13 @@ import type { CommentAnchorY, CommentLine } from "./commentLines.js";
 const AUTOSAVE_MS = 600;
 
 type SaveState = "idle" | "saving" | "saved" | "error" | "conflict";
+type SuggestionResolution = "applied" | "dismissed";
+
+interface EditSuggestionPreview {
+  threadId: string;
+  suggestionId: string;
+  original: string;
+}
 
 /** Conflict flow: a rejected save (or an external change signal) pauses
  *  autosave and shows the banner; "review" swaps the editor for a side-by-side
@@ -36,45 +48,58 @@ type Conflict = "none" | "banner" | "review";
 export interface EditorHandle {
   scrollToComment: (commentId: string) => void;
   applySuggestion: (suggestion: Suggestion) => boolean;
+  previewSuggestion: (threadId: string, suggestionId: string, suggestion: Suggestion) => boolean;
+  acceptSuggestionPreview: (threadId: string, suggestionId: string) => boolean;
+  dismissSuggestionPreview: (threadId: string, suggestionId: string) => boolean;
+  closeSuggestionPreview: () => void;
   /** The file changed on disk under a live editing session (externally
    *  detected, e.g. by the doc-changed watcher) — enter the conflict flow. */
   notifyExternalChange: () => void;
 }
 
-class CommentGutterMarker extends GutterMarker {
-  override eq(other: GutterMarker): boolean {
-    return other instanceof CommentGutterMarker;
+// The pinned preview's decision chip — identical markup to the view-mode
+// preview's floating actions, hosted as a block widget so it owns a reserved
+// row above the chunk instead of painting over the text.
+class PreviewChipWidget extends WidgetType {
+  constructor(
+    private readonly actions: { accept: () => void; reject: () => void; close: () => void },
+  ) {
+    super();
+  }
+
+  override eq(): boolean {
+    // Never reuse across reconfigures: the handlers close over the live preview.
+    return false;
   }
 
   override toDOM(): HTMLElement {
-    // Passive indicator — "a comment anchors on this line", no interaction and no
-    // flash. The clickable/flashing target is the underlined quote in the text.
-    const node = document.createElement("span");
-    node.className = "cm-comment-marker";
-    node.title = "Has a comment";
-    node.setAttribute("aria-hidden", "true");
-    return node;
+    const chip = document.createElement("div");
+    chip.className = "suggestion-preview-actions";
+    chip.setAttribute("role", "group");
+    chip.setAttribute("aria-label", "Suggestion actions");
+    const button = (label: string, className: string, onClick: () => void) => {
+      const el = document.createElement("button");
+      el.type = "button";
+      if (className) el.className = className;
+      el.textContent = label;
+      el.addEventListener("mousedown", (event) => event.preventDefault());
+      el.addEventListener("click", (event) => {
+        event.stopPropagation();
+        onClick();
+      });
+      return el;
+    };
+    chip.append(
+      button("Reject", "suggestion-preview-reject", this.actions.reject),
+      button("Accept", "", this.actions.accept),
+      button("Close", "suggestion-preview-close", this.actions.close),
+    );
+    return chip;
   }
-}
 
-function commentGutterExtension(commentLines: CommentLine[]) {
-  return gutter({
-    class: "cm-comment-gutter",
-    markers(view) {
-      const builder = new RangeSetBuilder<GutterMarker>();
-      // RangeSetBuilder requires ranges added in ascending `from` order; comment
-      // lines arrive in thread order, not line order, so resolve to positions and
-      // sort before adding (an unsorted add throws and crashes the gutter).
-      const positioned = commentLines
-        .filter((c) => c.line >= 1 && c.line <= view.state.doc.lines)
-        .map((c) => view.state.doc.line(c.line).from)
-        .sort((a, b) => a - b);
-      for (const pos of positioned) {
-        builder.add(pos, pos, new CommentGutterMarker());
-      }
-      return builder.finish();
-    },
-  });
+  override ignoreEvent(): boolean {
+    return true;
+  }
 }
 
 // Underline the anchored quote of each comment in the editor text — the
@@ -177,6 +202,12 @@ export const Editor = forwardRef<EditorHandle, {
   /** Reports the editor's scroll container element — the base the card layout
    *  measures anchor offsets against. Null on unmount. */
   onEditorHostChange?: (host: HTMLElement | null) => void;
+  /** Records the qualified decision made by an edit-mode preview chunk. */
+  onSuggestionPreviewDecision?: (
+    threadId: string,
+    suggestionId: string,
+    resolution: SuggestionResolution,
+  ) => void;
 }>(function Editor({
   file,
   commentLines = [],
@@ -187,6 +218,7 @@ export const Editor = forwardRef<EditorHandle, {
   onRawContentChange,
   onCommentAnchorYsChange,
   onEditorHostChange,
+  onSuggestionPreviewDecision,
 }, ref) {
   const [text, setText] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -212,6 +244,18 @@ export const Editor = forwardRef<EditorHandle, {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const viewRef = useRef<EditorView | null>(null);
+  const fileRef = useRef(file);
+  fileRef.current = file;
+  const suggestionPreviewCompartment = useRef(new Compartment());
+  const suggestionPreviewExtension = useMemo(
+    () => suggestionPreviewCompartment.current.of([]),
+    [],
+  );
+  const suggestionPreviewRef = useRef<EditSuggestionPreview | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const closingSuggestionPreview = useRef(false);
+  const suggestionDecisionCb = useRef(onSuggestionPreviewDecision);
+  suggestionDecisionCb.current = onSuggestionPreviewDecision;
   // Latest callbacks, read without re-binding effects.
   const dirtyCb = useRef(onDirtyChange);
   dirtyCb.current = onDirtyChange;
@@ -249,7 +293,6 @@ export const Editor = forwardRef<EditorHandle, {
   // palette; the binding lives in the editor keymap so it only fires while
   // editing (and preventDefault keeps the browser out of it).
   const baseExtensions = useMemo(() => createEditorExtensions(() => setPaletteOpen(true)), []);
-  const commentGutter = useMemo(() => commentGutterExtension(commentLines), [commentLines]);
   const commentHighlight = useMemo(
     () => commentHighlightExtension(commentLines, flashingCommentId),
     [commentLines, flashingCommentId],
@@ -263,8 +306,7 @@ export const Editor = forwardRef<EditorHandle, {
       }),
     [],
   );
-  // Click the underlined quote → jump to its card (and flash the quote). Only
-  // the underline is a click target; the gutter dot is a passive indicator.
+  // Click the underlined quote → jump to its card (and flash the quote).
   // Hover tints ALL spans of the comment together via a .hover class (a quote
   // crossing lines renders as multiple mark spans, and native :hover would tint
   // only the hovered piece) — the same group-hover the rendered view paints.
@@ -304,8 +346,20 @@ export const Editor = forwardRef<EditorHandle, {
     });
   }, []);
   const extensions = useMemo(
-    () => [...baseExtensions, commentHighlight, commentGutter, commentClickHandler, commentAnchorReporter],
-    [baseExtensions, commentHighlight, commentGutter, commentClickHandler, commentAnchorReporter],
+    () => [
+      ...baseExtensions,
+      commentHighlight,
+      commentClickHandler,
+      commentAnchorReporter,
+      suggestionPreviewExtension,
+    ],
+    [
+      baseExtensions,
+      commentHighlight,
+      commentClickHandler,
+      commentAnchorReporter,
+      suggestionPreviewExtension,
+    ],
   );
 
   const flashCommentMarker = (commentId: string) => {
@@ -317,14 +371,171 @@ export const Editor = forwardRef<EditorHandle, {
     }, 1300);
   };
 
+  const clearSuggestionPreview = () => {
+    if (!suggestionPreviewRef.current) return;
+    suggestionPreviewRef.current = null;
+    setPreviewOpen(false);
+    viewRef.current?.dispatch({
+      effects: suggestionPreviewCompartment.current.reconfigure([]),
+    });
+  };
+
+  const closeSuggestionPreview = () => {
+    const preview = suggestionPreviewRef.current;
+    const view = viewRef.current;
+    if (!preview || !view) return;
+    closingSuggestionPreview.current = true;
+    if (view.state.doc.toString() !== preview.original) {
+      rejectChunk(view, getChunks(view.state)?.chunks[0]?.fromB);
+      if (view.state.doc.toString() !== preview.original) {
+        view.dispatch({
+          changes: { from: 0, to: view.state.doc.length, insert: preview.original },
+        });
+      }
+    }
+    closingSuggestionPreview.current = false;
+    clearSuggestionPreview();
+  };
+
+  const settleSuggestionPreview = (
+    resolution: SuggestionResolution,
+    chunkHandled = false,
+  ): boolean => {
+    const preview = suggestionPreviewRef.current;
+    const view = viewRef.current;
+    if (!preview || !view) return false;
+    if (!chunkHandled) {
+      const chunk = getChunks(view.state)?.chunks[0];
+      const pos = chunk?.fromB;
+      const changed = resolution === "applied" ? acceptChunk(view, pos) : rejectChunk(view, pos);
+      if (!changed) return false;
+    }
+    // A dismissal must restore the whole buffer: a preview whose diff shares an
+    // unchanged line splits into several chunks, and rejecting one chunk leaves
+    // the others' proposed text to silently persist on the next save.
+    if (resolution === "dismissed" && view.state.doc.toString() !== preview.original) {
+      closingSuggestionPreview.current = true;
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: preview.original },
+      });
+      closingSuggestionPreview.current = false;
+    }
+    const { threadId, suggestionId } = preview;
+    clearSuggestionPreview();
+    if (resolution === "applied") queueAutosaveRef.current(view.state.doc.toString());
+    suggestionDecisionCb.current?.(threadId, suggestionId, resolution);
+    return true;
+  };
+
+  const previewSuggestion = (threadId: string, suggestionId: string, suggestion: Suggestion): boolean => {
+    if (conflictRef.current !== "none") return false;
+    if (suggestionPreviewRef.current) closeSuggestionPreview();
+    const view = viewRef.current;
+    if (!view) return false;
+    const original = view.state.doc.toString();
+    const transaction = buildSuggestionEdit(view.state, suggestion);
+    if (!transaction) return false;
+    const changes = transaction.changes as { from: number };
+    const preview = { threadId, suggestionId, original };
+    suggestionPreviewRef.current = preview;
+    setPreviewOpen(true);
+    view.dispatch(transaction);
+    // The chip is a block widget above the chunk's first line — a reserved row,
+    // never painted over the text, matching the view-mode preview's layout. The
+    // package's per-chunk controls and gutter markers are disabled: the chip is
+    // the one decision surface, and the chunk washes are the one change marker.
+    const chipAt = view.state.doc.lineAt(Math.min(changes.from, view.state.doc.length)).from;
+    view.dispatch({
+      effects: suggestionPreviewCompartment.current.reconfigure([
+        unifiedMergeView({
+          original,
+          allowInlineDiffs: true,
+          gutter: false,
+          mergeControls: false,
+        }),
+        EditorView.decorations.of(
+          Decoration.set([
+            Decoration.widget({
+              widget: new PreviewChipWidget({
+                accept: () => settleSuggestionPreview("applied", true),
+                reject: () => settleSuggestionPreview("dismissed", true),
+                close: () => closeSuggestionPreviewRef.current(),
+              }),
+              block: true,
+              // Sort above the package's deleted-chunk widget at the same
+              // position, so the chip heads the whole preview like view mode.
+              side: -2,
+            }).range(chipAt),
+          ]),
+        ),
+      ]),
+    });
+    // Mirror the view-mode rule: pinning brings the preview to the reader. The
+    // editor page-scrolls natively, so measure viewport coords and move the
+    // window when the chunk isn't fully visible (top-align when it is taller
+    // than the viewport, centre otherwise).
+    requestAnimationFrame(() => {
+      if (suggestionPreviewRef.current !== preview) return;
+      // Measure the chip's real position: the deleted-chunk widget of unknown
+      // height sits between the chip row and the first changed line.
+      const chip = view.dom.querySelector(".suggestion-preview-actions");
+      const chipTop = chip ? chip.getBoundingClientRect().top : null;
+      if (chipTop === null) return;
+      const endPos = Math.min(changes.from + suggestion.replacement.length, view.state.doc.length);
+      const tail = view.coordsAtPos(endPos);
+      const bottom = tail ? tail.bottom : chipTop;
+      if (chipTop >= 0 && bottom <= window.innerHeight) return;
+      const height = bottom - chipTop;
+      const target =
+        height > window.innerHeight * 0.8
+          ? window.scrollY + chipTop - 60
+          : window.scrollY + chipTop - (window.innerHeight - height) / 2;
+      window.scrollTo({ top: Math.max(target, 0) });
+    });
+    return true;
+  };
+
+  const previewSuggestionRef = useRef(previewSuggestion);
+  previewSuggestionRef.current = previewSuggestion;
+  const closeSuggestionPreviewRef = useRef(closeSuggestionPreview);
+  closeSuggestionPreviewRef.current = closeSuggestionPreview;
+
+  useEffect(() => {
+    if (!previewOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      closeSuggestionPreviewRef.current();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [previewOpen]);
+
   useImperativeHandle(ref, () => ({
     applySuggestion(suggestion) {
       const view = viewRef.current;
       return view !== null && applySuggestionEdit(suggestion, view);
     },
+    previewSuggestion(threadId, suggestionId, suggestion) {
+      return previewSuggestionRef.current(threadId, suggestionId, suggestion);
+    },
+    acceptSuggestionPreview(threadId, suggestionId) {
+      const preview = suggestionPreviewRef.current;
+      if (!preview || preview.threadId !== threadId || preview.suggestionId !== suggestionId) return false;
+      return settleSuggestionPreview("applied");
+    },
+    dismissSuggestionPreview(threadId, suggestionId) {
+      const preview = suggestionPreviewRef.current;
+      if (!preview || preview.threadId !== threadId || preview.suggestionId !== suggestionId) return false;
+      return settleSuggestionPreview("dismissed");
+    },
+    closeSuggestionPreview() {
+      closeSuggestionPreviewRef.current();
+    },
     notifyExternalChange() {
       if (conflictRef.current !== "none") return; // already in the flow
       if (timer.current) clearTimeout(timer.current);
+      closeSuggestionPreviewRef.current();
       setConflict("banner");
       setSaveState("conflict");
     },
@@ -472,6 +683,7 @@ export const Editor = forwardRef<EditorHandle, {
     return () => {
       if (flashTimer.current) clearTimeout(flashTimer.current);
       if (anchorReportRaf.current !== null) cancelAnimationFrame(anchorReportRaf.current);
+      closeSuggestionPreviewRef.current();
       editorHostCb.current?.(null);
     };
   }, []);
@@ -509,6 +721,7 @@ export const Editor = forwardRef<EditorHandle, {
     return () => {
       cancelled = true;
       if (timer.current) clearTimeout(timer.current);
+      closeSuggestionPreviewRef.current();
     };
   }, [file]);
 
@@ -516,18 +729,31 @@ export const Editor = forwardRef<EditorHandle, {
     setText(value);
     contentCb.current?.(parseFrontmatter(value).body); // live outline tracks typing
     rawContentCb.current?.(value);
+    // A pinned suggestion is a temporary buffer state. Undoing it restores the
+    // original text and releases the merge decorations without saving.
+    const preview = suggestionPreviewRef.current;
+    if (preview) {
+      if (!closingSuggestionPreview.current && value === preview.original) clearSuggestionPreview();
+      return;
+    }
     // While conflicted, typing keeps the buffer but never writes — a save now
     // would clobber the very change the conflict flagged. Resolution resumes.
     if (conflictRef.current !== "none") return;
+    queueAutosaveRef.current(value);
+  };
+
+  const queueAutosave = (value: string) => {
+    if (conflictRef.current !== "none" || suggestionPreviewRef.current) return;
     setSaveState("saving");
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       if (conflictRef.current !== "none") return; // conflict landed mid-debounce
+      if (suggestionPreviewRef.current) return;
       // Tell the parent what we're writing BEFORE the request goes out — the
       // watcher's doc-changed event can outrun the PUT response, and the echo
       // must already be recognizable when it lands.
-      dirtyCb.current?.(file, false, value);
-      saveDoc(file, value, versionRef.current ?? undefined)
+      dirtyCb.current?.(fileRef.current, false, value);
+      saveDoc(fileRef.current, value, versionRef.current ?? undefined)
         .then((version) => {
           versionRef.current = version;
           setSaveState("saved");
@@ -542,6 +768,8 @@ export const Editor = forwardRef<EditorHandle, {
         });
     }, AUTOSAVE_MS);
   };
+  const queueAutosaveRef = useRef(queueAutosave);
+  queueAutosaveRef.current = queueAutosave;
 
   if (loadError) {
     return <div className="editor-status editor-error">{loadError}</div>;

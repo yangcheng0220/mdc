@@ -348,6 +348,7 @@ export function App() {
     setConfirmEnd(false);
     const session = presence.active;
     if (!session || session.file !== activeFile) return;
+    editorRef.current?.closeSuggestionPreview();
     try {
       await postHandoffDone(session.sessionId, "done");
       toast.show({ title: "Session ended", meta: "The agent will stop watching." });
@@ -418,7 +419,29 @@ export function App() {
   // dropping clicks that straddle a repaint. Read the live focus path via a ref.
   const focusThreadCardRef = useRef(focusThreadCard);
   focusThreadCardRef.current = focusThreadCard;
+  // Latest suggestion data behind the stable mark handler, so the editor's
+  // underline clicks can pin without rebinding its click extension.
+  const editMarkContext = useRef({ entries: comments.entries, editing: false });
+  editMarkContext.current = {
+    entries: comments.entries,
+    editing: activeFile !== null && editingFiles.has(activeFile),
+  };
   const onHighlightClick = useCallback((commentId: string) => {
+    // A suggestion mark pins its preview in either mode — the inline merge
+    // chunk in edit mode, the in-document diff in view mode. Decided, stale,
+    // or unmappable suggestions fall back to focus-only. A pin owns the page
+    // position (the user is already at the text), so the card is flashed
+    // without the centring scroll that would yank the click away.
+    const { entries: editEntries, editing } = editMarkContext.current;
+    if (editing) {
+      const entry = actionableSuggestion(editEntries, commentId);
+      if (entry?.suggestion && editorRef.current?.previewSuggestion(commentId, entry.id, entry.suggestion)) {
+        focusThreadCardRef.current(commentId, "open", { scroll: false });
+        return;
+      }
+      focusThreadCardRef.current(commentId, "open");
+      return;
+    }
     const { threads, entries, rawContent, orphanIds } = highlightPreviewContext.current;
     const thread = threads.find((candidate) => candidate.top.id === commentId);
     const suggestionEntry = actionableSuggestion(entries, commentId);
@@ -435,10 +458,6 @@ export function App() {
         suggestionId: suggestionEntry.id,
         suggestion: suggestionEntry.suggestion,
       });
-      // The pinned preview owns the page position (it scrolls itself into view
-      // if needed) — centring the card too would yank the text the user just
-      // clicked. Flash the card without scrolling, same net effect as a card
-      // click: pin shown, card indicated.
       focusThreadCardRef.current(commentId, "open", { scroll: false });
       return;
     }
@@ -543,6 +562,13 @@ export function App() {
       return next;
     });
   }, []);
+  const onEditModeSuggestionPreview = useCallback(
+    (threadId: string, suggestionId: string, suggestion: Suggestion) => {
+      editorRef.current?.scrollToComment(threadId);
+      editorRef.current?.previewSuggestion(threadId, suggestionId, suggestion);
+    },
+    [],
+  );
   const onCommentCardClick = useCallback((commentId: string) => {
     editorRef.current?.scrollToComment(commentId);
   }, []);
@@ -667,6 +693,9 @@ export function App() {
         return "error" as const;
       }
       if (editingFiles.has(activeFile)) {
+        if (editorRef.current?.acceptSuggestionPreview(threadId, suggestionId)) {
+          return "applied" as const;
+        }
         if (!editorRef.current?.applySuggestion(suggestion)) {
           setSuggestionPreview(null);
           return "stale" as const;
@@ -721,6 +750,10 @@ export function App() {
         setSuggestionPreview(null);
         return;
       }
+      if (editingFiles.has(activeFile) && editorRef.current?.dismissSuggestionPreview(threadId, suggestionId)) {
+        setSuggestionPreview(null);
+        return;
+      }
       try {
         await postResolve(activeFile, threadId, user, "dismissed", suggestionId);
         setSuggestionPreview(null);
@@ -731,7 +764,27 @@ export function App() {
         throw error;
       }
     },
-    [activeFile, comments, reloadIndex, user],
+    [activeFile, comments, editingFiles, reloadIndex, user],
+  );
+  const onEditModeSuggestionDecision = useCallback(
+    async (threadId: string, suggestionId: string, resolution: "applied" | "dismissed") => {
+      if (!activeFile) return;
+      try {
+        await postResolve(activeFile, threadId, user, resolution, suggestionId);
+        comments.reload();
+        reloadIndex();
+        toast.show({
+          title: resolution === "applied" ? "Suggestion applied" : "Suggestion dismissed",
+          meta: resolution === "applied" ? "The editor change will be saved." : "The editor was restored.",
+        });
+      } catch {
+        toast.show({
+          title: "Couldn't resolve suggestion",
+          meta: resolution === "applied" ? "The editor change remains in the document." : "The editor was restored.",
+        });
+      }
+    },
+    [activeFile, comments, reloadIndex, toast, user],
   );
   const onPreviewSuggestion = useCallback(
     (threadId: string, suggestionId: string, suggestion: Suggestion) => {
@@ -1214,6 +1267,7 @@ export function App() {
                 onRawContentChange={setEditorRawContent}
                 onCommentAnchorYsChange={onCommentAnchorYsChange}
                 onEditorHostChange={setEditorHost}
+                onSuggestionPreviewDecision={onEditModeSuggestionDecision}
               />
             ) : (
               <Doc
@@ -1276,6 +1330,7 @@ export function App() {
             editAnchorYs={editorAnchorYs}
             editorHost={editorHost}
             onEditModeCardClick={onCommentCardClick}
+            onEditModeSuggestionPreview={onEditModeSuggestionPreview}
           />
         </div>
       </aside>

@@ -111,6 +111,7 @@ export function Comments({
   editAnchorYs,
   editorHost,
   onEditModeCardClick,
+  onEditModeSuggestionPreview,
 }: {
   threads: DisplayThread[];
   entries: Entry[];
@@ -153,6 +154,7 @@ export function Comments({
    *  live position at layout time, so they stay valid across page scrolls. */
   editorHost?: HTMLElement | null;
   onEditModeCardClick?: (commentId: string) => void;
+  onEditModeSuggestionPreview?: (threadId: string, suggestionId: string, suggestion: Suggestion) => void;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
   const [resizeTick, setResizeTick] = useState(0);
@@ -201,7 +203,13 @@ export function Comments({
           const id = card.dataset.sidebarId;
           const y = id ? anchors.get(id) : undefined;
           if (y === undefined) {
-            unpositioned.push(card);
+            // No fresh editor anchor. Keep the last known position (same rule
+            // as view mode's orphaned-mid-session case) — a pinned suggestion
+            // preview replaces its own quote in the buffer, and its card must
+            // not fall to the bottom for the duration of the pin. Only cards
+            // that never had an anchor (true orphans) flow below the stack.
+            if (card.dataset.anchorY !== undefined) positioned.push(card);
+            else unpositioned.push(card);
             continue;
           }
           card.dataset.anchorY = String(hostTop + y);
@@ -318,6 +326,7 @@ export function Comments({
                   actionable={actionableSuggestion(entries, t.top.id)}
                   rawContent={rawContent}
                   onEditModeClick={editing ? onEditModeCardClick : undefined}
+                  onEditModeSuggestionPreview={editing ? onEditModeSuggestionPreview : undefined}
                 />
               ))}
           {effectiveView === "open" && !editing && pending && (
@@ -507,6 +516,7 @@ function ThreadCard({
   actionable,
   rawContent,
   onEditModeClick,
+  onEditModeSuggestionPreview,
 }: {
   thread: DisplayThread;
   user: string;
@@ -528,6 +538,7 @@ function ThreadCard({
   actionable: Entry | undefined;
   rawContent: string | null;
   onEditModeClick?: (commentId: string) => void;
+  onEditModeSuggestionPreview?: (threadId: string, suggestionId: string, suggestion: Suggestion) => void;
 }) {
   const { top, replies } = thread;
   const foldable = replies.length > REPLY_FOLD_THRESHOLD;
@@ -601,7 +612,17 @@ function ThreadCard({
         if ((e.target as HTMLElement).closest("form")) return;
         previewSuggestion?.();
         if (overlayRoot) scrollToHighlight(overlayRoot, top.id);
-        else onEditModeClick?.(top.id);
+        else {
+          onEditModeClick?.(top.id);
+          if (
+            onEditModeSuggestionPreview &&
+            actionable?.suggestion &&
+            actionableSuggestionId &&
+            !decisionBlocked
+          ) {
+            onEditModeSuggestionPreview(top.id, actionableSuggestionId, actionable.suggestion);
+          }
+        }
       }}
     >
       <div className="hdr">
