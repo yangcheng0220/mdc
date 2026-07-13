@@ -1,5 +1,8 @@
 import { presentableDiff, type Change } from "@codemirror/merge";
 
+/** A card stays expanded through ten source/proposed lines. */
+const SUGGESTION_DIFF_COLLAPSE_THRESHOLD = 10;
+
 export interface DiffPart {
   text: string;
   changed: boolean;
@@ -29,4 +32,29 @@ export function shapeSuggestionDiff(current: string, proposed: string) {
     current: split(current, changes, "current"),
     proposed: split(proposed, changes, "proposed"),
   };
+}
+
+function lineCount(text: string): number {
+  return text === "" ? 0 : text.split(/\r?\n/).length;
+}
+
+export interface SuggestionDiffLineCounts {
+  added: number;
+  removed: number;
+  total: number;
+}
+
+/** Count the source/proposed lines represented by a suggestion card. */
+export function suggestionDiffLineCounts(
+  current: string,
+  proposed: string,
+): SuggestionDiffLineCounts {
+  const removed = lineCount(current);
+  const added = lineCount(proposed);
+  return { added, removed, total: added + removed };
+}
+
+/** Large actionable diffs use the compact card summary and in-document preview. */
+export function shouldCollapseSuggestionDiff(current: string, proposed: string): boolean {
+  return suggestionDiffLineCounts(current, proposed).total > SUGGESTION_DIFF_COLLAPSE_THRESHOLD;
 }

@@ -35,6 +35,7 @@ import { Comments, type SidebarView } from "./Comments.js";
 import { ConfirmDialog } from "./ConfirmDialog.js";
 import type { PendingComment } from "./commentData.js";
 import { actionableSuggestion, type Suggestion } from "../../src/threads.js";
+import { findTargetStrict } from "../../src/anchor.js";
 import { Doc, type SuggestionPreviewRequest } from "./Doc.js";
 import { Settings } from "./Settings.js";
 import { DocBanner } from "./DocBanner.js";
@@ -61,7 +62,7 @@ import { usePresence } from "./usePresence.js";
 import { useTabs } from "./useTabs.js";
 import { useToast } from "./useToast.js";
 
-type CardFocus = { threadId: string; view: SidebarView; nonce: number };
+type CardFocus = { threadId: string; view: SidebarView; nonce: number; scroll: boolean };
 
 export function App() {
   const [activeFile, setActiveFile] = useActiveFile();
@@ -389,13 +390,26 @@ export function App() {
   // Open vs Resolved view in the comment sidebar.
   const [sidebarView, setSidebarView] = useState<SidebarView>("open");
   useEffect(() => setSidebarView("open"), [activeFile]);
+  // Keep the latest suggestion data behind the stable mark handler so highlight
+  // repaints do not have to rebind their DOM click listeners.
+  const highlightPreviewContext = useRef({
+    threads: comments.threads,
+    entries: comments.entries,
+    rawContent: viewRawContent,
+    orphanIds: [] as string[],
+  });
   const focusThreadCard = useCallback(
-    (commentId: string, viewOverride?: SidebarView) => {
+    (commentId: string, viewOverride?: SidebarView, options?: { scroll?: boolean }) => {
       const thread = comments.threads.find((t) => t.top.id === commentId);
       const view = viewOverride ?? (thread?.resolved ? "resolved" : "open");
       if (panels.sidebarCollapsed) panels.toggle("sidebar");
       if (sidebarView !== view) setSidebarView(view);
-      setCardFocus((prev) => ({ threadId: commentId, view, nonce: (prev?.nonce ?? 0) + 1 }));
+      setCardFocus((prev) => ({
+        threadId: commentId,
+        view,
+        nonce: (prev?.nonce ?? 0) + 1,
+        scroll: options?.scroll ?? true,
+      }));
     },
     [comments.threads, panels, sidebarView],
   );
@@ -413,15 +427,39 @@ export function App() {
     editing: activeFile !== null && editingFiles.has(activeFile),
   };
   const onHighlightClick = useCallback((commentId: string) => {
-    // In edit mode a suggestion mark pins the inline chunk — the same grammar as
-    // the card click. previewSuggestion refuses stale/conflicted targets, so a
-    // decided or unmappable suggestion falls back to focus-only.
-    const { entries, editing } = editMarkContext.current;
+    // A suggestion mark pins its preview in either mode — the inline merge
+    // chunk in edit mode, the in-document diff in view mode. Decided, stale,
+    // or unmappable suggestions fall back to focus-only. A pin owns the page
+    // position (the user is already at the text), so the card is flashed
+    // without the centring scroll that would yank the click away.
+    const { entries: editEntries, editing } = editMarkContext.current;
     if (editing) {
-      const entry = actionableSuggestion(entries, commentId);
-      if (entry?.suggestion) {
-        editorRef.current?.previewSuggestion(commentId, entry.id, entry.suggestion);
+      const entry = actionableSuggestion(editEntries, commentId);
+      if (entry?.suggestion && editorRef.current?.previewSuggestion(commentId, entry.id, entry.suggestion)) {
+        focusThreadCardRef.current(commentId, "open", { scroll: false });
+        return;
       }
+      focusThreadCardRef.current(commentId, "open");
+      return;
+    }
+    const { threads, entries, rawContent, orphanIds } = highlightPreviewContext.current;
+    const thread = threads.find((candidate) => candidate.top.id === commentId);
+    const suggestionEntry = actionableSuggestion(entries, commentId);
+    if (
+      thread &&
+      !thread.resolved &&
+      !orphanIds.includes(commentId) &&
+      suggestionEntry?.suggestion &&
+      rawContent !== null &&
+      findTargetStrict(suggestionEntry.suggestion.target, rawContent) !== null
+    ) {
+      setSuggestionPreview({
+        threadId: commentId,
+        suggestionId: suggestionEntry.id,
+        suggestion: suggestionEntry.suggestion,
+      });
+      focusThreadCardRef.current(commentId, "open", { scroll: false });
+      return;
     }
     focusThreadCardRef.current(commentId, "open");
   }, []);
@@ -437,7 +475,7 @@ export function App() {
       if (!panels.sidebarCollapsed && sidebarView === cardFocus.view) {
         const card = document.querySelector<HTMLElement>(selector);
         if (card && card.offsetParent !== null) {
-          card.scrollIntoView({ behavior: "smooth", block: "center" });
+          if (cardFocus.scroll) card.scrollIntoView({ behavior: "smooth", block: "center" });
           card.classList.remove("flash");
           requestAnimationFrame(() => card.classList.add("flash"));
           setTimeout(() => {
@@ -467,6 +505,12 @@ export function App() {
     const openThreadIds = new Set(comments.threads.filter((thread) => !thread.resolved).map((thread) => thread.top.id));
     return orphanIds.filter((id) => openThreadIds.has(id));
   }, [activeFile, comments.threads, orphanIds]);
+  highlightPreviewContext.current = {
+    threads: comments.threads,
+    entries: comments.entries,
+    rawContent: viewRawContent,
+    orphanIds: viewOrphanIds,
+  };
   const viewOrphanKey = viewOrphanIds.join("\0");
   const acknowledgedOrphans = useRef<Map<string, Set<string>>>(new Map());
   const [orphanNotice, setOrphanNotice] = useState<{
@@ -644,15 +688,21 @@ export function App() {
   );
   const onApplySuggestion = useCallback(
     async (threadId: string, suggestionId: string, suggestion: Suggestion) => {
-      setSuggestionPreview(null);
-      if (!activeFile) return "error" as const;
+      if (!activeFile) {
+        setSuggestionPreview(null);
+        return "error" as const;
+      }
       if (editingFiles.has(activeFile)) {
         if (editorRef.current?.acceptSuggestionPreview(threadId, suggestionId)) {
           return "applied" as const;
         }
-        if (!editorRef.current?.applySuggestion(suggestion)) return "stale" as const;
+        if (!editorRef.current?.applySuggestion(suggestion)) {
+          setSuggestionPreview(null);
+          return "stale" as const;
+        }
         try {
           await postResolve(activeFile, threadId, user, "applied", suggestionId);
+          setSuggestionPreview(null);
           comments.reload();
           reloadIndex();
           toast.show({ title: "Suggestion applied", meta: "The editor was updated." });
@@ -662,6 +712,7 @@ export function App() {
             title: "Couldn't resolve suggestion",
             meta: "The editor change remains in the document.",
           });
+          setSuggestionPreview(null);
           return "error" as const;
         }
       }
@@ -671,30 +722,47 @@ export function App() {
         recent.push(result.content);
         if (recent.length > 8) recent.shift();
         lastWritten.current.set(activeFile, recent);
-        setDocChanged(false);
-        setDocReloadNonce((nonce) => nonce + 1);
+        setSuggestionPreview(null);
+        reloadDoc();
         comments.reload();
         reloadIndex();
         toast.show({ title: "Suggestion applied", meta: "The document was updated." });
         return "applied" as const;
       } catch (error) {
-        if (error instanceof ApiError && error.status === 409) return "stale" as const;
+        if (error instanceof ApiError && error.status === 409) {
+          setSuggestionPreview(null);
+          comments.reload();
+          // Refresh the raw content used by the card's strict preflight so a
+          // stale decision takes the same orphaned path as a card decision.
+          reloadDoc();
+          return "stale" as const;
+        }
+        setSuggestionPreview(null);
         toast.show({ title: "Couldn't apply suggestion", meta: "The document was not changed." });
         return "error" as const;
       }
     },
-    [activeFile, comments, editingFiles, reloadIndex, toast, user],
+    [activeFile, comments, editingFiles, reloadDoc, reloadIndex, toast, user],
   );
   const onDismissSuggestion = useCallback(
     async (threadId: string, suggestionId: string) => {
-      setSuggestionPreview(null);
-      if (!activeFile) return;
-      if (editingFiles.has(activeFile) && editorRef.current?.dismissSuggestionPreview(threadId, suggestionId)) {
+      if (!activeFile) {
+        setSuggestionPreview(null);
         return;
       }
-      await postResolve(activeFile, threadId, user, "dismissed", suggestionId);
-      comments.reload();
-      reloadIndex();
+      if (editingFiles.has(activeFile) && editorRef.current?.dismissSuggestionPreview(threadId, suggestionId)) {
+        setSuggestionPreview(null);
+        return;
+      }
+      try {
+        await postResolve(activeFile, threadId, user, "dismissed", suggestionId);
+        setSuggestionPreview(null);
+        comments.reload();
+        reloadIndex();
+      } catch (error) {
+        setSuggestionPreview(null);
+        throw error;
+      }
     },
     [activeFile, comments, editingFiles, reloadIndex, user],
   );
@@ -1221,6 +1289,8 @@ export function App() {
                 }}
                 suggestionPreview={suggestionPreview}
                 onCloseSuggestionPreview={closeSuggestionPreview}
+                onApplySuggestion={onApplySuggestion}
+                onDismissSuggestion={onDismissSuggestion}
                 onSuggestionPreviewUnavailable={onSuggestionPreviewUnavailable}
               />
             )}

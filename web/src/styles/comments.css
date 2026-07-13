@@ -295,6 +295,35 @@
   color: var(--text-faint);
   font-weight: 600;
 }
+.suggestion-collapsed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+}
+.suggestion-summary {
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.suggestion-preview-btn {
+  flex: 0 0 auto;
+  padding: 4px 9px;
+  border: 1px solid var(--text);
+  border-radius: 5px;
+  color: var(--surface);
+  background: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.suggestion-preview-btn:hover {
+  opacity: 0.85;
+}
 .suggestion-side {
   display: grid;
   grid-template-columns: 58px minmax(0, 1fr);
@@ -340,6 +369,42 @@
    place as untouched nodes but leave layout while their rendered sibling owns
    the reading surface. Matching block structures use one merged word diff;
    changed structure uses stacked current/proposed washes. */
+.doc .suggestion-preview {
+  position: relative;
+  padding-top: 38px;
+}
+.doc .suggestion-preview-actions {
+  position: absolute;
+  top: 8px;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--toast-bg);
+  color: var(--toast-text);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+.doc .suggestion-preview-actions button {
+  border: 0;
+  padding: 7px 10px;
+  color: var(--toast-text);
+  background: transparent;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.doc .suggestion-preview-actions button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+}
+.doc .suggestion-preview-actions button + button {
+  border-left: 1px solid var(--toast-text-dim);
+}
+.doc .suggestion-preview-actions button:disabled {
+  color: var(--toast-text-dim);
+  cursor: default;
+}
 .doc .suggestion-preview-source {
   display: none !important;
 }
