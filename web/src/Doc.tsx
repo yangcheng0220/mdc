@@ -19,6 +19,7 @@ import { removeSelectionToolbar, showSelectionToolbar } from "./render/selection
 import { combo, matchEvent } from "./keymap.js";
 import type { DisplayThread } from "./commentData.js";
 import type { Suggestion } from "../../src/threads.js";
+import type { ApplySuggestionOutcome } from "./Comments.js";
 import { buildPinnedPreview } from "./render/inlinePreview.js";
 
 interface DocState {
@@ -54,6 +55,8 @@ export function Doc({
   onContentLoaded,
   suggestionPreview,
   onCloseSuggestionPreview,
+  onApplySuggestion,
+  onDismissSuggestion,
   onSuggestionPreviewUnavailable,
 }: {
   file: string | null;
@@ -86,6 +89,12 @@ export function Doc({
   onContentLoaded?: (body: string, rawContent: string) => void;
   suggestionPreview: SuggestionPreviewRequest | null;
   onCloseSuggestionPreview: () => void;
+  onApplySuggestion: (
+    threadId: string,
+    suggestionId: string,
+    suggestion: Suggestion,
+  ) => Promise<ApplySuggestionOutcome>;
+  onDismissSuggestion: (threadId: string, suggestionId: string) => Promise<void>;
   onSuggestionPreviewUnavailable: (suggestionId: string) => void;
 }) {
   const [state, setState] = useState<DocState>({ status: "empty" });
@@ -126,6 +135,13 @@ export function Doc({
   // (bound once) always sees current values without re-binding.
   const selCb = useRef({ onStartPending, pendingActive });
   selCb.current = { onStartPending, pendingActive };
+
+  // Same latest-ref pattern for the chip's decision handlers: they're rebuilt on
+  // every parent render (they depend on parent state), and the preview effect
+  // must not tear down and re-assert its captured scroll each time — that would
+  // pin the page scroll for as long as a preview is open.
+  const previewCb = useRef({ onApplySuggestion, onDismissSuggestion });
+  previewCb.current = { onApplySuggestion, onDismissSuggestion };
 
   // The body HTML is injected imperatively (not via dangerouslySetInnerHTML) so
   // React never reconciles this subtree — the highlight spans we add would
@@ -208,7 +224,20 @@ export function Doc({
     const body = state.body;
     const rawContent = state.rawContent;
     if (!root || body === undefined || rawContent === undefined) return;
-    const built = buildPinnedPreview(root, body, rawContent, suggestionPreview.suggestion);
+    const built = buildPinnedPreview(root, body, rawContent, suggestionPreview.suggestion, {
+      onAccept: () =>
+        previewCb.current.onApplySuggestion(
+          suggestionPreview.threadId,
+          suggestionPreview.suggestionId,
+          suggestionPreview.suggestion,
+        ),
+      onReject: () =>
+        previewCb.current.onDismissSuggestion(
+          suggestionPreview.threadId,
+          suggestionPreview.suggestionId,
+        ),
+      onClose: onCloseSuggestionPreview,
+    });
     if (!built) {
       onSuggestionPreviewUnavailable(suggestionPreview.suggestionId);
       return;
@@ -225,6 +254,15 @@ export function Doc({
     for (const element of built.sourceElements) element.classList.add("suggestion-preview-source");
     if (scrollRoot) scrollRoot.scrollTop = scrollTop;
     else window.scrollTo({ top: scrollTop });
+    // Pinning from a far-away card must bring the preview to the reader — the
+    // chip is only decidable where it can be seen. The pre-pin offset was
+    // captured above, so closing still restores the exact original position.
+    const box = built.container.getBoundingClientRect();
+    if (box.top < 0 || box.bottom > window.innerHeight) {
+      built.container.scrollIntoView({
+        block: box.height > window.innerHeight * 0.8 ? "start" : "center",
+      });
+    }
 
     previewThreadId.current = suggestionPreview.threadId;
     syncPreviewHighlight();
