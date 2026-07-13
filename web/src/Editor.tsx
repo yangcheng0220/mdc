@@ -13,7 +13,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { Compartment, EditorState, RangeSetBuilder } from "@codemirror/state";
-import { Decoration, EditorView, GutterMarker, WidgetType, gutter, type DecorationSet } from "@codemirror/view";
+import { Decoration, EditorView, WidgetType, type DecorationSet } from "@codemirror/view";
 import { MergeView, acceptChunk, getChunks, rejectChunk, unifiedMergeView } from "@codemirror/merge";
 import type { Suggestion } from "../../src/threads.js";
 import { MarkdownPalette } from "./MarkdownPalette.js";
@@ -100,42 +100,6 @@ class PreviewChipWidget extends WidgetType {
   override ignoreEvent(): boolean {
     return true;
   }
-}
-
-class CommentGutterMarker extends GutterMarker {
-  override eq(other: GutterMarker): boolean {
-    return other instanceof CommentGutterMarker;
-  }
-
-  override toDOM(): HTMLElement {
-    // Passive indicator — "a comment anchors on this line", no interaction and no
-    // flash. The clickable/flashing target is the underlined quote in the text.
-    const node = document.createElement("span");
-    node.className = "cm-comment-marker";
-    node.title = "Has a comment";
-    node.setAttribute("aria-hidden", "true");
-    return node;
-  }
-}
-
-function commentGutterExtension(commentLines: CommentLine[]) {
-  return gutter({
-    class: "cm-comment-gutter",
-    markers(view) {
-      const builder = new RangeSetBuilder<GutterMarker>();
-      // RangeSetBuilder requires ranges added in ascending `from` order; comment
-      // lines arrive in thread order, not line order, so resolve to positions and
-      // sort before adding (an unsorted add throws and crashes the gutter).
-      const positioned = commentLines
-        .filter((c) => c.line >= 1 && c.line <= view.state.doc.lines)
-        .map((c) => view.state.doc.line(c.line).from)
-        .sort((a, b) => a - b);
-      for (const pos of positioned) {
-        builder.add(pos, pos, new CommentGutterMarker());
-      }
-      return builder.finish();
-    },
-  });
 }
 
 // Underline the anchored quote of each comment in the editor text — the
@@ -329,7 +293,6 @@ export const Editor = forwardRef<EditorHandle, {
   // palette; the binding lives in the editor keymap so it only fires while
   // editing (and preventDefault keeps the browser out of it).
   const baseExtensions = useMemo(() => createEditorExtensions(() => setPaletteOpen(true)), []);
-  const commentGutter = useMemo(() => commentGutterExtension(commentLines), [commentLines]);
   const commentHighlight = useMemo(
     () => commentHighlightExtension(commentLines, flashingCommentId),
     [commentLines, flashingCommentId],
@@ -343,8 +306,7 @@ export const Editor = forwardRef<EditorHandle, {
       }),
     [],
   );
-  // Click the underlined quote → jump to its card (and flash the quote). Only
-  // the underline is a click target; the gutter dot is a passive indicator.
+  // Click the underlined quote → jump to its card (and flash the quote).
   // Hover tints ALL spans of the comment together via a .hover class (a quote
   // crossing lines renders as multiple mark spans, and native :hover would tint
   // only the hovered piece) — the same group-hover the rendered view paints.
@@ -387,7 +349,6 @@ export const Editor = forwardRef<EditorHandle, {
     () => [
       ...baseExtensions,
       commentHighlight,
-      commentGutter,
       commentClickHandler,
       commentAnchorReporter,
       suggestionPreviewExtension,
@@ -395,7 +356,6 @@ export const Editor = forwardRef<EditorHandle, {
     [
       baseExtensions,
       commentHighlight,
-      commentGutter,
       commentClickHandler,
       commentAnchorReporter,
       suggestionPreviewExtension,
