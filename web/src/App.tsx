@@ -35,7 +35,7 @@ import { Comments, type SidebarView } from "./Comments.js";
 import { ConfirmDialog } from "./ConfirmDialog.js";
 import type { PendingComment } from "./commentData.js";
 import type { Suggestion } from "../../src/threads.js";
-import { Doc } from "./Doc.js";
+import { Doc, type SuggestionPreviewRequest } from "./Doc.js";
 import { Settings } from "./Settings.js";
 import { DocBanner } from "./DocBanner.js";
 import { DocToolbar } from "./DocToolbar.js";
@@ -177,6 +177,7 @@ export function App() {
   // shows the previous doc's headings while the new one loads.
   const [outlineContent, setOutlineContent] = useState<string | null>(null);
   const [viewRawContent, setViewRawContent] = useState<string | null>(null);
+  const [suggestionPreview, setSuggestionPreview] = useState<SuggestionPreviewRequest | null>(null);
   const [editorRawContent, setEditorRawContent] = useState<string | null>(null);
   const [editorAnchorYs, setEditorAnchorYs] = useState<CommentAnchorY[]>([]);
   const [editorHost, setEditorHost] = useState<HTMLElement | null>(null);
@@ -185,9 +186,11 @@ export function App() {
     setViewRawContent(null);
     setEditorRawContent(null);
     setEditorAnchorYs([]);
+    setSuggestionPreview(null);
   }, [activeFile]);
   const toggleEdit = useCallback((file: string) => {
     setDocChanged(false); // a switch shows fresh content either way — no stale banner
+    setSuggestionPreview(null);
     setEditingFiles((prev) => {
       const next = new Set(prev);
       if (next.has(file)) next.delete(file);
@@ -616,6 +619,7 @@ export function App() {
   );
   const onApplySuggestion = useCallback(
     async (threadId: string, suggestionId: string, suggestion: Suggestion) => {
+      setSuggestionPreview(null);
       if (!activeFile) return "error" as const;
       if (editingFiles.has(activeFile)) {
         if (!editorRef.current?.applySuggestion(suggestion)) return "stale" as const;
@@ -655,6 +659,7 @@ export function App() {
   );
   const onDismissSuggestion = useCallback(
     async (threadId: string, suggestionId: string) => {
+      setSuggestionPreview(null);
       if (!activeFile) return;
       await postResolve(activeFile, threadId, user, "dismissed", suggestionId);
       comments.reload();
@@ -662,6 +667,18 @@ export function App() {
     },
     [activeFile, comments, reloadIndex, user],
   );
+  const onPreviewSuggestion = useCallback(
+    (threadId: string, suggestionId: string, suggestion: Suggestion) => {
+      setSuggestionPreview({ threadId, suggestionId, suggestion });
+    },
+    [],
+  );
+  const closeSuggestionPreview = useCallback(() => setSuggestionPreview(null), []);
+  const onSuggestionPreviewUnavailable = useCallback((suggestionId: string) => {
+    setSuggestionPreview((current) =>
+      current?.suggestionId === suggestionId ? null : current,
+    );
+  }, []);
   const onUnresolve = useCallback(
     async (threadId: string) => {
       if (!activeFile) return;
@@ -1150,6 +1167,9 @@ export function App() {
                   setOutlineContent(body);
                   setViewRawContent(rawContent);
                 }}
+                suggestionPreview={suggestionPreview}
+                onCloseSuggestionPreview={closeSuggestionPreview}
+                onSuggestionPreviewUnavailable={onSuggestionPreviewUnavailable}
               />
             )}
           </div>
@@ -1179,6 +1199,7 @@ export function App() {
             onResolve={onResolve}
             onApplySuggestion={onApplySuggestion}
             onDismissSuggestion={onDismissSuggestion}
+            onPreviewSuggestion={onPreviewSuggestion}
             onUnresolve={onUnresolve}
             onEdit={onEdit}
             onRequestDelete={setDeleteTarget}

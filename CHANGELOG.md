@@ -5,8 +5,10 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 ## [Unreleased]
 
 ### Added
+- Suggestion cards in view mode now pin a reversible in-document diff preview, with a stacked fallback when the proposed edit changes block structure.
 
 ### Changed
+- Conflict merge views now use the shared teal/violet diff colors for added and removed text.
 
 ### Fixed
 - Comment highlights stay within horizontally scrolling code blocks at narrow document widths.

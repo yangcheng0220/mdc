@@ -97,6 +97,7 @@ export function Comments({
   onResolve,
   onApplySuggestion,
   onDismissSuggestion,
+  onPreviewSuggestion,
   onUnresolve,
   onEdit,
   onRequestDelete,
@@ -135,6 +136,7 @@ export function Comments({
     suggestion: Suggestion,
   ) => Promise<ApplySuggestionOutcome>;
   onDismissSuggestion: (threadId: string, suggestionId: string) => Promise<void>;
+  onPreviewSuggestion: (threadId: string, suggestionId: string, suggestion: Suggestion) => void;
   onUnresolve: (threadId: string) => void;
   onEdit: (commentId: string, body: string) => void;
   onRequestDelete: (commentId: string) => void;
@@ -302,6 +304,7 @@ export function Comments({
                   onResolve={onResolve}
                   onApplySuggestion={onApplySuggestion}
                   onDismissSuggestion={onDismissSuggestion}
+                  onPreviewSuggestion={editing ? undefined : onPreviewSuggestion}
                   onEdit={onEdit}
                   onRequestDelete={onRequestDelete}
                   reposition={reposition}
@@ -490,6 +493,7 @@ function ThreadCard({
   onResolve,
   onApplySuggestion,
   onDismissSuggestion,
+  onPreviewSuggestion,
   onEdit,
   onRequestDelete,
   reposition,
@@ -510,6 +514,7 @@ function ThreadCard({
     suggestion: Suggestion,
   ) => Promise<ApplySuggestionOutcome>;
   onDismissSuggestion: (threadId: string, suggestionId: string) => Promise<void>;
+  onPreviewSuggestion?: (threadId: string, suggestionId: string, suggestion: Suggestion) => void;
   onEdit: (commentId: string, body: string) => void;
   onRequestDelete: (commentId: string) => void;
   reposition: () => void;
@@ -546,6 +551,14 @@ function ThreadCard({
   const decisionBlocked =
     targetStale ||
     (actionableSuggestionId !== undefined && staleSuggestionId === actionableSuggestionId);
+  const previewSuggestion =
+    onPreviewSuggestion &&
+    !orphaned &&
+    !decisionBlocked &&
+    actionable?.suggestion &&
+    actionableSuggestionId
+      ? () => onPreviewSuggestion(top.id, actionableSuggestionId, actionable.suggestion!)
+      : undefined;
 
   const acceptSuggestion = async (suggestionId: string, suggestion: Suggestion) => {
     setApplyingId(suggestionId);
@@ -581,6 +594,7 @@ function ThreadCard({
         const tag = (e.target as HTMLElement).tagName;
         if (tag === "BUTTON" || tag === "A" || tag === "TEXTAREA" || tag === "INPUT") return;
         if ((e.target as HTMLElement).closest("form")) return;
+        previewSuggestion?.();
         if (overlayRoot) scrollToHighlight(overlayRoot, top.id);
         else onEditModeClick?.(top.id);
       }}

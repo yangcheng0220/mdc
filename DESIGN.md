@@ -18,8 +18,8 @@ Every hue carries exactly one meaning. Never repurpose a status hue as a neutral
 | Red | `--danger` | Destructive actions and irrecoverable state ("doc deleted") | Emphasis |
 | Muted red-brown | `--broken`, `--broken-border` | Broken references and render errors | Destructive actions (that's `--danger`) |
 | Green | `--success` | Live/connected state (agent presence) | Confirmation flourishes |
-| Teal | `--diff-add`, `--diff-add-tint` | Text added by a suggestion | Live state, confirmation |
-| Violet | `--diff-del`, `--diff-del-tint` | Current text removed by a suggestion | Errors, destructive actions |
+| Teal | `--diff-add`, `--diff-add-tint` | Text added by a suggestion; text present only on the right (added) side of a conflict merge view | Live state, confirmation |
+| Violet | `--diff-del`, `--diff-del-tint` | Current text removed by a suggestion; text present only on the left (removed) side of a conflict merge view | Errors, destructive actions |
 
 Authorship is **not** a color: comment marks are one rust regardless of author. Who wrote what shows on the cards (avatars: agent = rust-tinted, user = neutral) and in words, never as a second mark hue.
 
@@ -101,3 +101,4 @@ For UI that isn't a shared component, match the established look rather than inv
 - **Modals** — the backdrop is `var(--scrim)` for every modal. Shells differ by purpose (settings, confirm, palette) and are not force-unified.
 - **Escape layering** — an overlay that consumes Escape (modal, palette, menu, lightbox) calls `preventDefault()`; a surface that cancels on a global Escape listener (permission cards) listens on `window` and skips `defaultPrevented` events, so a stacked overlay's Escape never also cancels what's beneath it.
 - **Dark chip** (selection toolbar, toasts) — `--toast-*` tokens, never `--text`/`--surface` (those double-invert in dark).
+- **Pinned suggestion preview** — view mode temporarily swaps the target's complete rendered blocks for a sibling preview while leaving the source nodes intact and hiding that thread's rust highlight rects. Structure-preserving changes read as one in-place word diff using `--diff-del*` for struck text and `--diff-add*` for inserted text. Structure-changing changes use stacked Current/Proposed blocks with the same violet/teal tints and edge colors. Closing removes the preview, unhides the original nodes, and restores the captured scroll position.
