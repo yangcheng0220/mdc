@@ -136,6 +136,13 @@ export function Doc({
   const selCb = useRef({ onStartPending, pendingActive });
   selCb.current = { onStartPending, pendingActive };
 
+  // Same latest-ref pattern for the chip's decision handlers: they're rebuilt on
+  // every parent render (they depend on parent state), and the preview effect
+  // must not tear down and re-assert its captured scroll each time — that would
+  // pin the page scroll for as long as a preview is open.
+  const previewCb = useRef({ onApplySuggestion, onDismissSuggestion });
+  previewCb.current = { onApplySuggestion, onDismissSuggestion };
+
   // The body HTML is injected imperatively (not via dangerouslySetInnerHTML) so
   // React never reconciles this subtree — the highlight spans we add would
   // otherwise be wiped on the next render. Keyed only on the rendered HTML +
@@ -219,13 +226,16 @@ export function Doc({
     if (!root || body === undefined || rawContent === undefined) return;
     const built = buildPinnedPreview(root, body, rawContent, suggestionPreview.suggestion, {
       onAccept: () =>
-        onApplySuggestion(
+        previewCb.current.onApplySuggestion(
           suggestionPreview.threadId,
           suggestionPreview.suggestionId,
           suggestionPreview.suggestion,
         ),
       onReject: () =>
-        onDismissSuggestion(suggestionPreview.threadId, suggestionPreview.suggestionId),
+        previewCb.current.onDismissSuggestion(
+          suggestionPreview.threadId,
+          suggestionPreview.suggestionId,
+        ),
       onClose: onCloseSuggestionPreview,
     });
     if (!built) {
@@ -273,14 +283,7 @@ export function Doc({
       if (scrollRoot) scrollRoot.scrollTop = scrollTop;
       else window.scrollTo({ top: scrollTop });
     };
-  }, [
-    suggestionPreview,
-    state,
-    onCloseSuggestionPreview,
-    onApplySuggestion,
-    onDismissSuggestion,
-    onSuggestionPreviewUnavailable,
-  ]);
+  }, [suggestionPreview, state, onCloseSuggestionPreview, onSuggestionPreviewUnavailable]);
 
   // Re-render mermaid when the resolved theme flips: its SVG bakes the theme in at
   // render time, so a light↔dark toggle leaves a stale-themed diagram until the
