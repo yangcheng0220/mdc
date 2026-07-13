@@ -575,6 +575,17 @@ function ThreadCard({
     actionableSuggestionId
       ? () => onPreviewSuggestion(top.id, actionableSuggestionId, actionable.suggestion!)
       : undefined;
+  // Edit mode pins the inline merge chunk instead of the doc preview, so the
+  // collapsed card's Preview in doc affordance works in both modes.
+  const editPreviewSuggestion =
+    onEditModeSuggestionPreview &&
+    !orphaned &&
+    !decisionBlocked &&
+    actionable?.suggestion &&
+    actionableSuggestionId
+      ? () => onEditModeSuggestionPreview(top.id, actionableSuggestionId, actionable.suggestion!)
+      : undefined;
+  const pinPreview = previewSuggestion ?? editPreviewSuggestion;
 
   const acceptSuggestion = async (suggestionId: string, suggestion: Suggestion) => {
     setApplyingId(suggestionId);
@@ -673,7 +684,7 @@ function ThreadCard({
           onReject={
             top.id === actionableSuggestionId ? () => dismissSuggestion(top.id) : undefined
           }
-          onPreview={top.id === actionableSuggestionId ? previewSuggestion : undefined}
+          onPreview={top.id === actionableSuggestionId ? pinPreview : undefined}
           accepting={applyingId === top.id}
           rejecting={dismissingId === top.id}
         />
@@ -704,7 +715,7 @@ function ThreadCard({
                 onReject={
                   r.id === actionableSuggestionId ? () => dismissSuggestion(r.id) : undefined
                 }
-                onPreview={r.id === actionableSuggestionId ? previewSuggestion : undefined}
+                onPreview={r.id === actionableSuggestionId ? pinPreview : undefined}
                 accepting={applyingId === r.id}
                 rejecting={dismissingId === r.id}
               />

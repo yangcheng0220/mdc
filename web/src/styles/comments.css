@@ -373,19 +373,20 @@
   position: relative;
   padding-top: 38px;
 }
-.doc .suggestion-preview-actions {
-  position: absolute;
-  top: 8px;
-  right: 0;
-  z-index: 3;
+/* The preview's decision chip — dark-chip family, one visual for both hosts:
+   view mode positions it inside the preview's reserved header; edit mode lays
+   it out as a block-widget row. The UI font is explicit so the editor's
+   monospace can't leak in. */
+.suggestion-preview-actions {
   display: flex;
   overflow: hidden;
   border-radius: 6px;
   background: var(--toast-bg);
   color: var(--toast-text);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
-.doc .suggestion-preview-actions button {
+.suggestion-preview-actions button {
   border: 0;
   padding: 7px 10px;
   color: var(--toast-text);
@@ -395,15 +396,25 @@
   font-weight: 600;
   cursor: pointer;
 }
-.doc .suggestion-preview-actions button:hover:not(:disabled) {
+.suggestion-preview-actions button:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.15);
 }
-.doc .suggestion-preview-actions button + button {
+.suggestion-preview-actions button + button {
   border-left: 1px solid var(--toast-text-dim);
 }
-.doc .suggestion-preview-actions button:disabled {
+.suggestion-preview-actions button:disabled {
   color: var(--toast-text-dim);
   cursor: default;
+}
+.doc .suggestion-preview-actions {
+  position: absolute;
+  top: 8px;
+  right: 0;
+  z-index: 3;
+}
+.editor-cm .suggestion-preview-actions {
+  width: max-content;
+  margin: 2px 0 8px auto;
 }
 .doc .suggestion-preview-source {
   display: none !important;
