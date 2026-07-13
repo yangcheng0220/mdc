@@ -619,12 +619,18 @@ export function App() {
   );
   const onApplySuggestion = useCallback(
     async (threadId: string, suggestionId: string, suggestion: Suggestion) => {
-      setSuggestionPreview(null);
-      if (!activeFile) return "error" as const;
+      if (!activeFile) {
+        setSuggestionPreview(null);
+        return "error" as const;
+      }
       if (editingFiles.has(activeFile)) {
-        if (!editorRef.current?.applySuggestion(suggestion)) return "stale" as const;
+        if (!editorRef.current?.applySuggestion(suggestion)) {
+          setSuggestionPreview(null);
+          return "stale" as const;
+        }
         try {
           await postResolve(activeFile, threadId, user, "applied", suggestionId);
+          setSuggestionPreview(null);
           comments.reload();
           reloadIndex();
           toast.show({ title: "Suggestion applied", meta: "The editor was updated." });
@@ -634,6 +640,7 @@ export function App() {
             title: "Couldn't resolve suggestion",
             meta: "The editor change remains in the document.",
           });
+          setSuggestionPreview(null);
           return "error" as const;
         }
       }
@@ -643,27 +650,43 @@ export function App() {
         recent.push(result.content);
         if (recent.length > 8) recent.shift();
         lastWritten.current.set(activeFile, recent);
-        setDocChanged(false);
-        setDocReloadNonce((nonce) => nonce + 1);
+        setSuggestionPreview(null);
+        reloadDoc();
         comments.reload();
         reloadIndex();
         toast.show({ title: "Suggestion applied", meta: "The document was updated." });
         return "applied" as const;
       } catch (error) {
-        if (error instanceof ApiError && error.status === 409) return "stale" as const;
+        if (error instanceof ApiError && error.status === 409) {
+          setSuggestionPreview(null);
+          comments.reload();
+          // Refresh the raw content used by the card's strict preflight so a
+          // stale decision takes the same orphaned path as a card decision.
+          reloadDoc();
+          return "stale" as const;
+        }
+        setSuggestionPreview(null);
         toast.show({ title: "Couldn't apply suggestion", meta: "The document was not changed." });
         return "error" as const;
       }
     },
-    [activeFile, comments, editingFiles, reloadIndex, toast, user],
+    [activeFile, comments, editingFiles, reloadDoc, reloadIndex, toast, user],
   );
   const onDismissSuggestion = useCallback(
     async (threadId: string, suggestionId: string) => {
-      setSuggestionPreview(null);
-      if (!activeFile) return;
-      await postResolve(activeFile, threadId, user, "dismissed", suggestionId);
-      comments.reload();
-      reloadIndex();
+      if (!activeFile) {
+        setSuggestionPreview(null);
+        return;
+      }
+      try {
+        await postResolve(activeFile, threadId, user, "dismissed", suggestionId);
+        setSuggestionPreview(null);
+        comments.reload();
+        reloadIndex();
+      } catch (error) {
+        setSuggestionPreview(null);
+        throw error;
+      }
     },
     [activeFile, comments, reloadIndex, user],
   );
@@ -1169,6 +1192,8 @@ export function App() {
                 }}
                 suggestionPreview={suggestionPreview}
                 onCloseSuggestionPreview={closeSuggestionPreview}
+                onApplySuggestion={onApplySuggestion}
+                onDismissSuggestion={onDismissSuggestion}
                 onSuggestionPreviewUnavailable={onSuggestionPreviewUnavailable}
               />
             )}

@@ -195,12 +195,78 @@ export interface PinnedPreview {
   sourceElements: HTMLElement[];
 }
 
+type PreviewDecisionOutcome = "applied" | "stale" | "error";
+
+export interface PinnedPreviewActions {
+  onAccept: () => Promise<PreviewDecisionOutcome>;
+  onReject: () => Promise<void>;
+  onClose: () => void;
+}
+
+function decisionChip(actions: PinnedPreviewActions): HTMLDivElement {
+  const chip = document.createElement("div");
+  chip.className = "suggestion-preview-actions";
+  chip.setAttribute("role", "group");
+  chip.setAttribute("aria-label", "Suggestion actions");
+
+  const reject = document.createElement("button");
+  reject.type = "button";
+  reject.className = "suggestion-preview-reject";
+  reject.textContent = "Reject";
+
+  const accept = document.createElement("button");
+  accept.type = "button";
+  accept.textContent = "Accept";
+
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "suggestion-preview-close";
+  close.textContent = "Close";
+  close.setAttribute("aria-label", "Close suggestion preview");
+
+  const buttons = [reject, accept, close];
+  let busy = false;
+  const setBusy = (kind: "accept" | "reject" | null) => {
+    busy = kind !== null;
+    for (const button of buttons) button.disabled = busy;
+    reject.textContent = kind === "reject" ? "Dismissing…" : "Reject";
+    accept.textContent = kind === "accept" ? "Applying…" : "Accept";
+  };
+
+  reject.addEventListener("click", async () => {
+    if (busy) return;
+    setBusy("reject");
+    try {
+      await actions.onReject();
+    } catch {
+      setBusy(null);
+    }
+  });
+  accept.addEventListener("click", async () => {
+    if (busy) return;
+    setBusy("accept");
+    try {
+      const outcome = await actions.onAccept();
+      if (outcome === "error") setBusy(null);
+    } catch {
+      setBusy(null);
+    }
+  });
+  close.addEventListener("click", () => {
+    if (!busy) actions.onClose();
+  });
+
+  chip.append(reject, accept, close);
+  return chip;
+}
+
 /** Build a detached preview and identify the source elements it will replace. */
 export function buildPinnedPreview(
   root: HTMLElement,
   body: string,
   rawContent: string,
   suggestion: Suggestion,
+  actions?: PinnedPreviewActions,
 ): PinnedPreview | null {
   const match = findTargetStrict(suggestion.target, rawContent);
   if (!match || !rawContent.endsWith(body)) return null;
@@ -235,6 +301,7 @@ export function buildPinnedPreview(
   container.className = "suggestion-preview";
   container.dataset.suggestionPreview = "";
   container.setAttribute("aria-label", "Pinned suggestion preview");
+  if (actions) container.appendChild(decisionChip(actions));
   if (previewBlocksPair(blockTypes(currentElements), blockTypes(proposedElements))) {
     container.classList.add("suggestion-preview-word");
     for (let index = 0; index < proposedElements.length; index += 1) {

@@ -19,6 +19,7 @@ import { removeSelectionToolbar, showSelectionToolbar } from "./render/selection
 import { combo, matchEvent } from "./keymap.js";
 import type { DisplayThread } from "./commentData.js";
 import type { Suggestion } from "../../src/threads.js";
+import type { ApplySuggestionOutcome } from "./Comments.js";
 import { buildPinnedPreview } from "./render/inlinePreview.js";
 
 interface DocState {
@@ -54,6 +55,8 @@ export function Doc({
   onContentLoaded,
   suggestionPreview,
   onCloseSuggestionPreview,
+  onApplySuggestion,
+  onDismissSuggestion,
   onSuggestionPreviewUnavailable,
 }: {
   file: string | null;
@@ -86,6 +89,12 @@ export function Doc({
   onContentLoaded?: (body: string, rawContent: string) => void;
   suggestionPreview: SuggestionPreviewRequest | null;
   onCloseSuggestionPreview: () => void;
+  onApplySuggestion: (
+    threadId: string,
+    suggestionId: string,
+    suggestion: Suggestion,
+  ) => Promise<ApplySuggestionOutcome>;
+  onDismissSuggestion: (threadId: string, suggestionId: string) => Promise<void>;
   onSuggestionPreviewUnavailable: (suggestionId: string) => void;
 }) {
   const [state, setState] = useState<DocState>({ status: "empty" });
@@ -208,7 +217,17 @@ export function Doc({
     const body = state.body;
     const rawContent = state.rawContent;
     if (!root || body === undefined || rawContent === undefined) return;
-    const built = buildPinnedPreview(root, body, rawContent, suggestionPreview.suggestion);
+    const built = buildPinnedPreview(root, body, rawContent, suggestionPreview.suggestion, {
+      onAccept: () =>
+        onApplySuggestion(
+          suggestionPreview.threadId,
+          suggestionPreview.suggestionId,
+          suggestionPreview.suggestion,
+        ),
+      onReject: () =>
+        onDismissSuggestion(suggestionPreview.threadId, suggestionPreview.suggestionId),
+      onClose: onCloseSuggestionPreview,
+    });
     if (!built) {
       onSuggestionPreviewUnavailable(suggestionPreview.suggestionId);
       return;
@@ -254,7 +273,14 @@ export function Doc({
       if (scrollRoot) scrollRoot.scrollTop = scrollTop;
       else window.scrollTo({ top: scrollTop });
     };
-  }, [suggestionPreview, state, onCloseSuggestionPreview, onSuggestionPreviewUnavailable]);
+  }, [
+    suggestionPreview,
+    state,
+    onCloseSuggestionPreview,
+    onApplySuggestion,
+    onDismissSuggestion,
+    onSuggestionPreviewUnavailable,
+  ]);
 
   // Re-render mermaid when the resolved theme flips: its SVG bakes the theme in at
   // render time, so a light↔dark toggle leaves a stale-themed diagram until the
