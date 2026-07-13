@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { shapeSuggestionDiff } from "./suggestionDiff.js";
+import {
+  shapeSuggestionDiff,
+  shouldCollapseSuggestionDiff,
+  suggestionDiffLineCounts,
+} from "./suggestionDiff.js";
 
 describe("shapeSuggestionDiff", () => {
   it("marks changed words while preserving shared text", () => {
@@ -22,5 +26,23 @@ describe("shapeSuggestionDiff", () => {
       current: [{ text: "delete this", changed: true }],
       proposed: [],
     });
+  });
+
+  it("counts source and proposed lines for the compact summary", () => {
+    expect(suggestionDiffLineCounts("one\ntwo", "a\nb\nc")).toEqual({
+      added: 3,
+      removed: 2,
+      total: 5,
+    });
+    expect(suggestionDiffLineCounts("remove", "")).toEqual({
+      added: 0,
+      removed: 1,
+      total: 1,
+    });
+  });
+
+  it("collapses only diffs over the ten-line threshold", () => {
+    expect(shouldCollapseSuggestionDiff("1\n2\n3\n4\n5", "a\nb\nc\nd\ne")).toBe(false);
+    expect(shouldCollapseSuggestionDiff("1\n2\n3\n4\n5\n6", "a\nb\nc\nd\ne")).toBe(true);
   });
 });

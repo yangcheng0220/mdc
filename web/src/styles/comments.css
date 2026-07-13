@@ -295,6 +295,35 @@
   color: var(--text-faint);
   font-weight: 600;
 }
+.suggestion-collapsed {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+}
+.suggestion-summary {
+  color: var(--text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.suggestion-preview-btn {
+  flex: 0 0 auto;
+  padding: 4px 9px;
+  border: 1px solid var(--text);
+  border-radius: 5px;
+  color: var(--surface);
+  background: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.suggestion-preview-btn:hover {
+  opacity: 0.85;
+}
 .suggestion-side {
   display: grid;
   grid-template-columns: 58px minmax(0, 1fr);

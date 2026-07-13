@@ -34,7 +34,8 @@ import { CmdK } from "./CmdK.js";
 import { Comments, type SidebarView } from "./Comments.js";
 import { ConfirmDialog } from "./ConfirmDialog.js";
 import type { PendingComment } from "./commentData.js";
-import type { Suggestion } from "../../src/threads.js";
+import { actionableSuggestion, type Suggestion } from "../../src/threads.js";
+import { findTargetStrict } from "../../src/anchor.js";
 import { Doc, type SuggestionPreviewRequest } from "./Doc.js";
 import { Settings } from "./Settings.js";
 import { DocBanner } from "./DocBanner.js";
@@ -61,7 +62,7 @@ import { usePresence } from "./usePresence.js";
 import { useTabs } from "./useTabs.js";
 import { useToast } from "./useToast.js";
 
-type CardFocus = { threadId: string; view: SidebarView; nonce: number };
+type CardFocus = { threadId: string; view: SidebarView; nonce: number; scroll: boolean };
 
 export function App() {
   const [activeFile, setActiveFile] = useActiveFile();
@@ -388,13 +389,26 @@ export function App() {
   // Open vs Resolved view in the comment sidebar.
   const [sidebarView, setSidebarView] = useState<SidebarView>("open");
   useEffect(() => setSidebarView("open"), [activeFile]);
+  // Keep the latest suggestion data behind the stable mark handler so highlight
+  // repaints do not have to rebind their DOM click listeners.
+  const highlightPreviewContext = useRef({
+    threads: comments.threads,
+    entries: comments.entries,
+    rawContent: viewRawContent,
+    orphanIds: [] as string[],
+  });
   const focusThreadCard = useCallback(
-    (commentId: string, viewOverride?: SidebarView) => {
+    (commentId: string, viewOverride?: SidebarView, options?: { scroll?: boolean }) => {
       const thread = comments.threads.find((t) => t.top.id === commentId);
       const view = viewOverride ?? (thread?.resolved ? "resolved" : "open");
       if (panels.sidebarCollapsed) panels.toggle("sidebar");
       if (sidebarView !== view) setSidebarView(view);
-      setCardFocus((prev) => ({ threadId: commentId, view, nonce: (prev?.nonce ?? 0) + 1 }));
+      setCardFocus((prev) => ({
+        threadId: commentId,
+        view,
+        nonce: (prev?.nonce ?? 0) + 1,
+        scroll: options?.scroll ?? true,
+      }));
     },
     [comments.threads, panels, sidebarView],
   );
@@ -405,6 +419,29 @@ export function App() {
   const focusThreadCardRef = useRef(focusThreadCard);
   focusThreadCardRef.current = focusThreadCard;
   const onHighlightClick = useCallback((commentId: string) => {
+    const { threads, entries, rawContent, orphanIds } = highlightPreviewContext.current;
+    const thread = threads.find((candidate) => candidate.top.id === commentId);
+    const suggestionEntry = actionableSuggestion(entries, commentId);
+    if (
+      thread &&
+      !thread.resolved &&
+      !orphanIds.includes(commentId) &&
+      suggestionEntry?.suggestion &&
+      rawContent !== null &&
+      findTargetStrict(suggestionEntry.suggestion.target, rawContent) !== null
+    ) {
+      setSuggestionPreview({
+        threadId: commentId,
+        suggestionId: suggestionEntry.id,
+        suggestion: suggestionEntry.suggestion,
+      });
+      // The pinned preview owns the page position (it scrolls itself into view
+      // if needed) — centring the card too would yank the text the user just
+      // clicked. Flash the card without scrolling, same net effect as a card
+      // click: pin shown, card indicated.
+      focusThreadCardRef.current(commentId, "open", { scroll: false });
+      return;
+    }
     focusThreadCardRef.current(commentId, "open");
   }, []);
   useEffect(() => {
@@ -419,7 +456,7 @@ export function App() {
       if (!panels.sidebarCollapsed && sidebarView === cardFocus.view) {
         const card = document.querySelector<HTMLElement>(selector);
         if (card && card.offsetParent !== null) {
-          card.scrollIntoView({ behavior: "smooth", block: "center" });
+          if (cardFocus.scroll) card.scrollIntoView({ behavior: "smooth", block: "center" });
           card.classList.remove("flash");
           requestAnimationFrame(() => card.classList.add("flash"));
           setTimeout(() => {
@@ -449,6 +486,12 @@ export function App() {
     const openThreadIds = new Set(comments.threads.filter((thread) => !thread.resolved).map((thread) => thread.top.id));
     return orphanIds.filter((id) => openThreadIds.has(id));
   }, [activeFile, comments.threads, orphanIds]);
+  highlightPreviewContext.current = {
+    threads: comments.threads,
+    entries: comments.entries,
+    rawContent: viewRawContent,
+    orphanIds: viewOrphanIds,
+  };
   const viewOrphanKey = viewOrphanIds.join("\0");
   const acknowledgedOrphans = useRef<Map<string, Set<string>>>(new Map());
   const [orphanNotice, setOrphanNotice] = useState<{
