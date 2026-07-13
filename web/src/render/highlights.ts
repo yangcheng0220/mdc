@@ -226,8 +226,12 @@ export function highlightY(
     `${RECT_SELECTOR}[data-comment-id="${CSS.escape(commentId)}"]`,
   );
   if (!el) return null;
+  const rect = el.getBoundingClientRect();
+  // A rect hidden while its thread's preview is pinned measures 0x0; report it
+  // as missing so the caller keeps the last known Y instead of reading zeros.
+  if (rect.width === 0 && rect.height === 0) return null;
   const containerRect = container.getBoundingClientRect();
-  return el.getBoundingClientRect().top - containerRect.top + container.scrollTop;
+  return rect.top - containerRect.top + container.scrollTop;
 }
 
 /** Scroll the doc so a highlight is visible, with a brief flash on its rects. */
