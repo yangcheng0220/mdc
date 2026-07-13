@@ -296,35 +296,36 @@
   text-decoration: line-through;
   text-decoration-thickness: 1px;
 }
-/* Chunk controls are the same dark chip family as the view-mode preview's
-   floating actions (--toast-* tokens, never --text/--surface). */
-.editor-cm .cm-chunkButtons {
+/* The decision chip in the editor — identical to the view-mode preview's
+   floating actions (same class, same dark --toast-* family), rendered as a
+   block widget so it owns a reserved row above the chunk. The UI font is set
+   explicitly: the chip must not inherit the editor's monospace. */
+.editor-cm .suggestion-preview-actions {
   display: flex;
+  width: max-content;
+  margin: 2px 0 8px auto;
   overflow: hidden;
   border-radius: 6px;
   background: var(--toast-bg);
   color: var(--toast-text);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
-.editor-cm .cm-chunkButtons button.cm-suggestion-accept,
-.editor-cm .cm-chunkButtons button.cm-suggestion-reject {
-  margin: 0;
-  padding: 7px 10px;
+.editor-cm .suggestion-preview-actions button {
   border: 0;
-  border-radius: 0;
-  font: inherit;
+  padding: 7px 10px;
+  color: var(--toast-text);
+  background: transparent;
+  font-family: inherit;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  color: var(--toast-text);
-  background: transparent;
 }
-.editor-cm .cm-chunkButtons button + button {
-  border-left: 1px solid var(--toast-text-dim);
-}
-.editor-cm .cm-chunkButtons button.cm-suggestion-accept:hover,
-.editor-cm .cm-chunkButtons button.cm-suggestion-reject:hover {
+.editor-cm .suggestion-preview-actions button:hover {
   background: rgba(255, 255, 255, 0.15);
+}
+.editor-cm .suggestion-preview-actions button + button {
+  border-left: 1px solid var(--toast-text-dim);
 }
 /* Save status sits inline in the toolbar, just after the filename breadcrumb. */
 .toolbar-savestate {

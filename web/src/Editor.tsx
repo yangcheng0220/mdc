@@ -13,7 +13,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { Compartment, EditorState, RangeSetBuilder } from "@codemirror/state";
-import { Decoration, EditorView, GutterMarker, gutter, type DecorationSet } from "@codemirror/view";
+import { Decoration, EditorView, GutterMarker, WidgetType, gutter, type DecorationSet } from "@codemirror/view";
 import { MergeView, acceptChunk, getChunks, rejectChunk, unifiedMergeView } from "@codemirror/merge";
 import type { Suggestion } from "../../src/threads.js";
 import { MarkdownPalette } from "./MarkdownPalette.js";
@@ -55,6 +55,51 @@ export interface EditorHandle {
   /** The file changed on disk under a live editing session (externally
    *  detected, e.g. by the doc-changed watcher) — enter the conflict flow. */
   notifyExternalChange: () => void;
+}
+
+// The pinned preview's decision chip — identical markup to the view-mode
+// preview's floating actions, hosted as a block widget so it owns a reserved
+// row above the chunk instead of painting over the text.
+class PreviewChipWidget extends WidgetType {
+  constructor(
+    private readonly actions: { accept: () => void; reject: () => void; close: () => void },
+  ) {
+    super();
+  }
+
+  override eq(): boolean {
+    // Never reuse across reconfigures: the handlers close over the live preview.
+    return false;
+  }
+
+  override toDOM(): HTMLElement {
+    const chip = document.createElement("div");
+    chip.className = "suggestion-preview-actions";
+    chip.setAttribute("role", "group");
+    chip.setAttribute("aria-label", "Suggestion actions");
+    const button = (label: string, className: string, onClick: () => void) => {
+      const el = document.createElement("button");
+      el.type = "button";
+      if (className) el.className = className;
+      el.textContent = label;
+      el.addEventListener("mousedown", (event) => event.preventDefault());
+      el.addEventListener("click", (event) => {
+        event.stopPropagation();
+        onClick();
+      });
+      return el;
+    };
+    chip.append(
+      button("Reject", "suggestion-preview-reject", this.actions.reject),
+      button("Accept", "", this.actions.accept),
+      button("Close", "suggestion-preview-close", this.actions.close),
+    );
+    return chip;
+  }
+
+  override ignoreEvent(): boolean {
+    return true;
+  }
 }
 
 class CommentGutterMarker extends GutterMarker {
@@ -430,34 +475,40 @@ export const Editor = forwardRef<EditorHandle, {
     const original = view.state.doc.toString();
     const transaction = buildSuggestionEdit(view.state, suggestion);
     if (!transaction) return false;
+    const changes = transaction.changes as { from: number };
     const preview = { threadId, suggestionId, original };
     suggestionPreviewRef.current = preview;
     setPreviewOpen(true);
     view.dispatch(transaction);
+    // The chip is a block widget above the chunk's first line — a reserved row,
+    // never painted over the text, matching the view-mode preview's layout. The
+    // package's per-chunk controls and gutter markers are disabled: the chip is
+    // the one decision surface, and the chunk washes are the one change marker.
+    const chipAt = view.state.doc.lineAt(Math.min(changes.from, view.state.doc.length)).from;
     view.dispatch({
-      effects: suggestionPreviewCompartment.current.reconfigure(
+      effects: suggestionPreviewCompartment.current.reconfigure([
         unifiedMergeView({
           original,
           allowInlineDiffs: true,
-          mergeControls: (type, action) => {
-            const button = document.createElement("button");
-            button.type = "button";
-            button.className = `cm-suggestion-${type}`;
-            button.textContent = type === "accept" ? "Accept" : "Reject";
-            button.addEventListener("mousedown", (event) => {
-              event.stopPropagation();
-              // Rejecting restores the original text, which otherwise looks
-              // like an undo to onChange and clears the preview before this
-              // control can record its qualified decision.
-              closingSuggestionPreview.current = type === "reject";
-              action(event);
-              closingSuggestionPreview.current = false;
-              settleSuggestionPreview(type === "accept" ? "applied" : "dismissed", true);
-            });
-            return button;
-          },
+          gutter: false,
+          mergeControls: false,
         }),
-      ),
+        EditorView.decorations.of(
+          Decoration.set([
+            Decoration.widget({
+              widget: new PreviewChipWidget({
+                accept: () => settleSuggestionPreview("applied", true),
+                reject: () => settleSuggestionPreview("dismissed", true),
+                close: () => closeSuggestionPreviewRef.current(),
+              }),
+              block: true,
+              // Sort above the package's deleted-chunk widget at the same
+              // position, so the chip heads the whole preview like view mode.
+              side: -2,
+            }).range(chipAt),
+          ]),
+        ),
+      ]),
     });
     return true;
   };
