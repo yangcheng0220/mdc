@@ -34,7 +34,7 @@ import { CmdK } from "./CmdK.js";
 import { Comments, type SidebarView } from "./Comments.js";
 import { ConfirmDialog } from "./ConfirmDialog.js";
 import type { PendingComment } from "./commentData.js";
-import type { Suggestion } from "../../src/threads.js";
+import { actionableSuggestion, type Suggestion } from "../../src/threads.js";
 import { Doc, type SuggestionPreviewRequest } from "./Doc.js";
 import { Settings } from "./Settings.js";
 import { DocBanner } from "./DocBanner.js";
@@ -405,7 +405,24 @@ export function App() {
   // dropping clicks that straddle a repaint. Read the live focus path via a ref.
   const focusThreadCardRef = useRef(focusThreadCard);
   focusThreadCardRef.current = focusThreadCard;
+  // Latest suggestion data behind the stable mark handler, so the editor's
+  // underline clicks can pin without rebinding its click extension.
+  const editMarkContext = useRef({ entries: comments.entries, editing: false });
+  editMarkContext.current = {
+    entries: comments.entries,
+    editing: activeFile !== null && editingFiles.has(activeFile),
+  };
   const onHighlightClick = useCallback((commentId: string) => {
+    // In edit mode a suggestion mark pins the inline chunk — the same grammar as
+    // the card click. previewSuggestion refuses stale/conflicted targets, so a
+    // decided or unmappable suggestion falls back to focus-only.
+    const { entries, editing } = editMarkContext.current;
+    if (editing) {
+      const entry = actionableSuggestion(entries, commentId);
+      if (entry?.suggestion) {
+        editorRef.current?.previewSuggestion(commentId, entry.id, entry.suggestion);
+      }
+    }
     focusThreadCardRef.current(commentId, "open");
   }, []);
   useEffect(() => {

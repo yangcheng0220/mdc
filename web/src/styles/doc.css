@@ -278,42 +278,45 @@
 .editor-cm .cm-editor.cm-merge-b .cm-changedLine,
 .editor-cm .cm-inlineChangedLine {
   background: var(--diff-add-tint);
-  color: var(--diff-add);
 }
+/* Word-level marks stay subtle washes over the line tints — body text keeps
+   --text so paragraph-scale changes read as prose, not solid color slabs. */
 .editor-cm .cm-editor.cm-merge-b .cm-changedText {
-  background: color-mix(in srgb, var(--diff-add) 45%, transparent);
+  background: color-mix(in srgb, var(--diff-add) 18%, transparent);
 }
 .editor-cm .cm-deletedChunk {
   padding: 6px 8px;
   border-left: 3px solid var(--diff-del);
   background: var(--diff-del-tint);
-  color: var(--diff-del);
 }
 .editor-cm .cm-deletedChunk .cm-deletedText {
-  background: color-mix(in srgb, var(--diff-del) 45%, transparent);
+  background: color-mix(in srgb, var(--diff-del) 18%, transparent);
 }
-.editor-cm .cm-suggestion-accept,
-.editor-cm .cm-suggestion-reject {
+/* The merge package's own .cm-chunkButtons button rule paints white-on-white;
+   match its container in the selector so our colors win the cascade. */
+.editor-cm .cm-chunkButtons button.cm-suggestion-accept,
+.editor-cm .cm-chunkButtons button.cm-suggestion-reject {
   margin: 0 2px;
   padding: 3px 8px;
-  border: 1px solid currentColor;
+  border: 1px solid var(--border-mid);
   border-radius: 5px;
   font: inherit;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-}
-.editor-cm .cm-suggestion-accept {
-  color: var(--diff-add);
-  background: var(--diff-add-tint);
-}
-.editor-cm .cm-suggestion-reject {
-  color: var(--diff-del);
-  background: var(--diff-del-tint);
-}
-.editor-cm .cm-suggestion-accept:hover,
-.editor-cm .cm-suggestion-reject:hover {
   background: var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+.editor-cm .cm-chunkButtons button.cm-suggestion-accept {
+  color: var(--diff-add);
+}
+.editor-cm .cm-chunkButtons button.cm-suggestion-reject {
+  color: var(--diff-del);
+}
+.editor-cm .cm-chunkButtons button.cm-suggestion-accept:hover,
+.editor-cm .cm-chunkButtons button.cm-suggestion-reject:hover {
+  border-color: var(--text-muted);
+  background: var(--wash);
 }
 /* Save status sits inline in the toolbar, just after the filename breadcrumb. */
 .toolbar-savestate {
