@@ -371,7 +371,14 @@
    changed structure uses stacked current/proposed washes. */
 .doc .suggestion-preview {
   position: relative;
-  padding-top: 38px;
+}
+/* The chip's reserved row — sits directly above the changed list item or
+   block, right-aligned, matching the edit-mode block-widget row. */
+.doc .suggestion-preview-chip-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 8px;
+  list-style: none;
 }
 /* The preview's decision chip — dark-chip family, one visual for both hosts:
    view mode positions it inside the preview's reserved header; edit mode lays
@@ -406,12 +413,7 @@
   color: var(--toast-text-dim);
   cursor: default;
 }
-.doc .suggestion-preview-actions {
-  position: absolute;
-  top: 8px;
-  right: 0;
-  z-index: 3;
-}
+
 .editor-cm .suggestion-preview-actions {
   width: max-content;
   margin: 2px 0 8px auto;
