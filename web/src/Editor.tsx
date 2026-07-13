@@ -470,6 +470,26 @@ export const Editor = forwardRef<EditorHandle, {
         ),
       ]),
     });
+    // Mirror the view-mode rule: pinning brings the preview to the reader. The
+    // editor page-scrolls natively, so measure viewport coords and move the
+    // window when the chunk isn't fully visible (top-align when it is taller
+    // than the viewport, centre otherwise).
+    requestAnimationFrame(() => {
+      if (suggestionPreviewRef.current !== preview) return;
+      const head = view.coordsAtPos(chipAt);
+      if (!head) return;
+      const endPos = Math.min(changes.from + suggestion.replacement.length, view.state.doc.length);
+      const tail = view.coordsAtPos(endPos);
+      const bottom = tail ? tail.bottom : head.bottom;
+      const chipTop = head.top - 44; // the chip's reserved row sits above the line
+      if (chipTop >= 0 && bottom <= window.innerHeight) return;
+      const height = bottom - chipTop;
+      const target =
+        height > window.innerHeight * 0.8
+          ? window.scrollY + chipTop - 60
+          : window.scrollY + chipTop - (window.innerHeight - height) / 2;
+      window.scrollTo({ top: Math.max(target, 0) });
+    });
     return true;
   };
 

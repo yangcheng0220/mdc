@@ -198,7 +198,13 @@ export function Comments({
           const id = card.dataset.sidebarId;
           const y = id ? anchors.get(id) : undefined;
           if (y === undefined) {
-            unpositioned.push(card);
+            // No fresh editor anchor. Keep the last known position (same rule
+            // as view mode's orphaned-mid-session case) — a pinned suggestion
+            // preview replaces its own quote in the buffer, and its card must
+            // not fall to the bottom for the duration of the pin. Only cards
+            // that never had an anchor (true orphans) flow below the stack.
+            if (card.dataset.anchorY !== undefined) positioned.push(card);
+            else unpositioned.push(card);
             continue;
           }
           card.dataset.anchorY = String(hostTop + y);
