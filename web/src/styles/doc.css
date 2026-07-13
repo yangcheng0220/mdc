@@ -272,51 +272,59 @@
 .editor-cm .cm-line {
   padding: 0;
 }
-/* Edit-mode suggestion previews use CodeMirror's unified merge surface. The
-   live buffer is the proposed side; the deleted widget is the current side.
-   Keep both sides on the shared teal/violet diff vocabulary. */
+/* Edit-mode suggestion previews use CodeMirror's unified merge surface, styled
+   to speak the SAME language as the view-mode preview: struck violet deletions,
+   teal insertions, tint washes for the two sides, untouched text stays --text. */
 .editor-cm .cm-editor.cm-merge-b .cm-changedLine,
 .editor-cm .cm-inlineChangedLine {
   background: var(--diff-add-tint);
 }
-/* Word-level marks stay subtle washes over the line tints — body text keeps
-   --text so paragraph-scale changes read as prose, not solid color slabs. */
-.editor-cm .cm-editor.cm-merge-b .cm-changedText {
-  background: color-mix(in srgb, var(--diff-add) 18%, transparent);
+.editor-cm .cm-editor.cm-merge-b .cm-changedText,
+.editor-cm .cm-editor ins.cm-changedText {
+  background: none;
+  color: var(--diff-add);
 }
 .editor-cm .cm-deletedChunk {
   padding: 6px 8px;
   border-left: 3px solid var(--diff-del);
   background: var(--diff-del-tint);
 }
+.editor-cm .cm-editor del.cm-deletedText,
 .editor-cm .cm-deletedChunk .cm-deletedText {
-  background: color-mix(in srgb, var(--diff-del) 18%, transparent);
+  background: none;
+  color: var(--diff-del);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
 }
-/* The merge package's own .cm-chunkButtons button rule paints white-on-white;
-   match its container in the selector so our colors win the cascade. */
+/* Chunk controls are the same dark chip family as the view-mode preview's
+   floating actions (--toast-* tokens, never --text/--surface). */
+.editor-cm .cm-chunkButtons {
+  display: flex;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--toast-bg);
+  color: var(--toast-text);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
 .editor-cm .cm-chunkButtons button.cm-suggestion-accept,
 .editor-cm .cm-chunkButtons button.cm-suggestion-reject {
-  margin: 0 2px;
-  padding: 3px 8px;
-  border: 1px solid var(--border-mid);
-  border-radius: 5px;
+  margin: 0;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 0;
   font: inherit;
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  background: var(--surface);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  color: var(--toast-text);
+  background: transparent;
 }
-.editor-cm .cm-chunkButtons button.cm-suggestion-accept {
-  color: var(--diff-add);
-}
-.editor-cm .cm-chunkButtons button.cm-suggestion-reject {
-  color: var(--diff-del);
+.editor-cm .cm-chunkButtons button + button {
+  border-left: 1px solid var(--toast-text-dim);
 }
 .editor-cm .cm-chunkButtons button.cm-suggestion-accept:hover,
 .editor-cm .cm-chunkButtons button.cm-suggestion-reject:hover {
-  border-color: var(--text-muted);
-  background: var(--wash);
+  background: rgba(255, 255, 255, 0.15);
 }
 /* Save status sits inline in the toolbar, just after the filename breadcrumb. */
 .toolbar-savestate {
