@@ -405,6 +405,16 @@ export const Editor = forwardRef<EditorHandle, {
       const changed = resolution === "applied" ? acceptChunk(view, pos) : rejectChunk(view, pos);
       if (!changed) return false;
     }
+    // A dismissal must restore the whole buffer: a preview whose diff shares an
+    // unchanged line splits into several chunks, and rejecting one chunk leaves
+    // the others' proposed text to silently persist on the next save.
+    if (resolution === "dismissed" && view.state.doc.toString() !== preview.original) {
+      closingSuggestionPreview.current = true;
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: preview.original },
+      });
+      closingSuggestionPreview.current = false;
+    }
     const { threadId, suggestionId } = preview;
     clearSuggestionPreview();
     if (resolution === "applied") queueAutosaveRef.current(view.state.doc.toString());
