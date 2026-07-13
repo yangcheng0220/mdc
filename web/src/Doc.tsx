@@ -251,6 +251,10 @@ export function Doc({
     const scrollRoot = document.scrollingElement;
     const scrollTop = scrollRoot?.scrollTop ?? window.scrollY;
     first.before(built.container);
+    // The preview re-renders raw markdown, so its images still carry doc-relative
+    // srcs — give them the same embed + fallback treatment as the injected doc.
+    if (file) embedImages(built.container, file);
+    wireImageEmbeds(built.container);
     for (const element of built.sourceElements) element.classList.add("suggestion-preview-source");
     if (scrollRoot) scrollRoot.scrollTop = scrollTop;
     else window.scrollTo({ top: scrollTop });

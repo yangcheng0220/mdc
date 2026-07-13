@@ -12,7 +12,7 @@ Point mdc at a folder and it renders your whole workspace in the browser — mar
 
   ![The mdc review loop](docs/screenshots/review-loop.png)
 
-- **Accept edits from the margin.** Ask for a change and your agent proposes it as a *suggestion* — a diff right on the thread card. **Accept** writes it into the doc (in rendered view or the editor, where it's a normal undoable edit), **Reject** discards it, or reply to send it back for another pass. Your doc changes only when you accept.
+- **Accept edits from the margin.** Ask for a change and your agent proposes it as a *suggestion* — a diff right on the thread card. Click the card and the change **pins as a live preview right in the doc** — deletions struck out, insertions highlighted in place — with floating **Accept / Reject** actions at the change itself; long diffs collapse on the card behind a **Preview in doc** button. **Accept** writes it into the doc (in rendered view or the editor, where it's a normal undoable edit), **Reject** discards it, or reply to send it back for another pass. Your doc changes only when you accept.
 
   ![Accepting a suggestion from the margin](docs/screenshots/suggestions.png)
 

@@ -260,6 +260,29 @@ function decisionChip(actions: PinnedPreviewActions): HTMLDivElement {
   return chip;
 }
 
+/**
+ * Give the chip a reserved row directly above the change (the edit-mode
+ * layout). A word diff inside a long list would otherwise park the chip at the
+ * top of the whole swapped block, far from the changed text: anchor the row
+ * before the topmost changed list item, or the changed top-level block, and
+ * fall back to the container head (stacked previews are all change anyway).
+ */
+function placeChip(container: HTMLElement, chip: HTMLElement): void {
+  const mark = container.querySelector(".suggestion-change");
+  let anchor: Element | null = null;
+  let el: Element | null = mark;
+  while (el && el.parentElement && el.parentElement !== container) {
+    el = el.parentElement;
+    if (el.tagName === "LI") anchor = el;
+  }
+  if (!anchor && mark && el && el.parentElement === container) anchor = el;
+  const row = document.createElement(anchor?.tagName === "LI" ? "li" : "div");
+  row.className = "suggestion-preview-chip-row";
+  row.appendChild(chip);
+  if (anchor) anchor.before(row);
+  else container.prepend(row);
+}
+
 /** Build a detached preview and identify the source elements it will replace. */
 export function buildPinnedPreview(
   root: HTMLElement,
@@ -301,7 +324,6 @@ export function buildPinnedPreview(
   container.className = "suggestion-preview";
   container.dataset.suggestionPreview = "";
   container.setAttribute("aria-label", "Pinned suggestion preview");
-  if (actions) container.appendChild(decisionChip(actions));
   if (previewBlocksPair(blockTypes(currentElements), blockTypes(proposedElements))) {
     container.classList.add("suggestion-preview-word");
     for (let index = 0; index < proposedElements.length; index += 1) {
@@ -312,6 +334,7 @@ export function buildPinnedPreview(
     container.classList.add("suggestion-preview-stacked");
     container.append(stackedSide("current", current), stackedSide("proposed", proposed));
   }
+  if (actions) placeChip(container, decisionChip(actions));
 
   return { container, sourceElements };
 }
