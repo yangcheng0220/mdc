@@ -254,6 +254,15 @@ export function Doc({
     for (const element of built.sourceElements) element.classList.add("suggestion-preview-source");
     if (scrollRoot) scrollRoot.scrollTop = scrollTop;
     else window.scrollTo({ top: scrollTop });
+    // Pinning from a far-away card must bring the preview to the reader — the
+    // chip is only decidable where it can be seen. The pre-pin offset was
+    // captured above, so closing still restores the exact original position.
+    const box = built.container.getBoundingClientRect();
+    if (box.top < 0 || box.bottom > window.innerHeight) {
+      built.container.scrollIntoView({
+        block: box.height > window.innerHeight * 0.8 ? "start" : "center",
+      });
+    }
 
     previewThreadId.current = suggestionPreview.threadId;
     syncPreviewHighlight();
