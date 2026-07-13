@@ -34,7 +34,8 @@ import { CmdK } from "./CmdK.js";
 import { Comments, type SidebarView } from "./Comments.js";
 import { ConfirmDialog } from "./ConfirmDialog.js";
 import type { PendingComment } from "./commentData.js";
-import type { Suggestion } from "../../src/threads.js";
+import { actionableSuggestion, type Suggestion } from "../../src/threads.js";
+import { findTargetStrict } from "../../src/anchor.js";
 import { Doc, type SuggestionPreviewRequest } from "./Doc.js";
 import { Settings } from "./Settings.js";
 import { DocBanner } from "./DocBanner.js";
@@ -388,6 +389,14 @@ export function App() {
   // Open vs Resolved view in the comment sidebar.
   const [sidebarView, setSidebarView] = useState<SidebarView>("open");
   useEffect(() => setSidebarView("open"), [activeFile]);
+  // Keep the latest suggestion data behind the stable mark handler so highlight
+  // repaints do not have to rebind their DOM click listeners.
+  const highlightPreviewContext = useRef({
+    threads: comments.threads,
+    entries: comments.entries,
+    rawContent: viewRawContent,
+    orphanIds: [] as string[],
+  });
   const focusThreadCard = useCallback(
     (commentId: string, viewOverride?: SidebarView) => {
       const thread = comments.threads.find((t) => t.top.id === commentId);
@@ -405,6 +414,23 @@ export function App() {
   const focusThreadCardRef = useRef(focusThreadCard);
   focusThreadCardRef.current = focusThreadCard;
   const onHighlightClick = useCallback((commentId: string) => {
+    const { threads, entries, rawContent, orphanIds } = highlightPreviewContext.current;
+    const thread = threads.find((candidate) => candidate.top.id === commentId);
+    const suggestionEntry = actionableSuggestion(entries, commentId);
+    if (
+      thread &&
+      !thread.resolved &&
+      !orphanIds.includes(commentId) &&
+      suggestionEntry?.suggestion &&
+      rawContent !== null &&
+      findTargetStrict(suggestionEntry.suggestion.target, rawContent) !== null
+    ) {
+      setSuggestionPreview({
+        threadId: commentId,
+        suggestionId: suggestionEntry.id,
+        suggestion: suggestionEntry.suggestion,
+      });
+    }
     focusThreadCardRef.current(commentId, "open");
   }, []);
   useEffect(() => {
@@ -449,6 +475,12 @@ export function App() {
     const openThreadIds = new Set(comments.threads.filter((thread) => !thread.resolved).map((thread) => thread.top.id));
     return orphanIds.filter((id) => openThreadIds.has(id));
   }, [activeFile, comments.threads, orphanIds]);
+  highlightPreviewContext.current = {
+    threads: comments.threads,
+    entries: comments.entries,
+    rawContent: viewRawContent,
+    orphanIds: viewOrphanIds,
+  };
   const viewOrphanKey = viewOrphanIds.join("\0");
   const acknowledgedOrphans = useRef<Map<string, Set<string>>>(new Map());
   const [orphanNotice, setOrphanNotice] = useState<{

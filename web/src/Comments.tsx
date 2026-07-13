@@ -27,7 +27,12 @@ import { CommentMenu } from "./CommentMenu.js";
 import { DropdownMenu } from "./DropdownMenu.js";
 import { CloseIcon, FunnelIcon } from "./icons.js";
 import { EmptySidebar } from "./Empty.js";
-import { shapeSuggestionDiff, type DiffPart } from "./suggestionDiff.js";
+import {
+  shapeSuggestionDiff,
+  shouldCollapseSuggestionDiff,
+  suggestionDiffLineCounts,
+  type DiffPart,
+} from "./suggestionDiff.js";
 
 const REPLY_FOLD_THRESHOLD = 3;
 const CARD_GAP = 8;
@@ -647,6 +652,7 @@ function ThreadCard({
           onReject={
             top.id === actionableSuggestionId ? () => dismissSuggestion(top.id) : undefined
           }
+          onPreview={top.id === actionableSuggestionId ? previewSuggestion : undefined}
           accepting={applyingId === top.id}
           rejecting={dismissingId === top.id}
         />
@@ -677,6 +683,7 @@ function ThreadCard({
                 onReject={
                   r.id === actionableSuggestionId ? () => dismissSuggestion(r.id) : undefined
                 }
+                onPreview={r.id === actionableSuggestionId ? previewSuggestion : undefined}
                 accepting={applyingId === r.id}
                 rejecting={dismissingId === r.id}
               />
@@ -754,6 +761,7 @@ function Reply({
   decision,
   onAccept,
   onReject,
+  onPreview,
   accepting,
   rejecting,
 }: {
@@ -766,6 +774,7 @@ function Reply({
   decision?: SuggestionResolution;
   onAccept?: () => void;
   onReject?: () => void;
+  onPreview?: () => void;
   accepting: boolean;
   rejecting: boolean;
 }) {
@@ -802,6 +811,7 @@ function Reply({
           decision={decision}
           onAccept={onAccept}
           onReject={onReject}
+          onPreview={onPreview}
           accepting={accepting}
           rejecting={rejecting}
         />
@@ -828,6 +838,7 @@ function SuggestionBlock({
   decision,
   onAccept,
   onReject,
+  onPreview,
   accepting = false,
   rejecting = false,
 }: {
@@ -836,10 +847,16 @@ function SuggestionBlock({
   decision?: SuggestionResolution;
   onAccept?: () => void;
   onReject?: () => void;
+  onPreview?: () => void;
   accepting?: boolean;
   rejecting?: boolean;
 }) {
   const diff = shapeSuggestionDiff(suggestion.target.quote, suggestion.replacement);
+  const lineCounts = suggestionDiffLineCounts(suggestion.target.quote, suggestion.replacement);
+  const collapsed = onPreview !== undefined && shouldCollapseSuggestionDiff(
+    suggestion.target.quote,
+    suggestion.replacement,
+  );
   return (
     <div
       className={`suggestion-block${superseded ? " is-superseded" : ""}`}
@@ -855,22 +872,42 @@ function SuggestionBlock({
           <span className="suggestion-state">superseded</span>
         ) : null}
       </div>
-      <div className="suggestion-side current">
-        <div className="suggestion-label">Current</div>
-        <div className="suggestion-text">
-          <DiffText parts={diff.current} kind="del" />
+      {collapsed ? (
+        <div className="suggestion-collapsed">
+          <span className="suggestion-summary" aria-label="Suggestion line changes">
+            +{lineCounts.added} −{lineCounts.removed}
+          </span>
+          <button
+            className="suggestion-preview-btn"
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onPreview();
+            }}
+          >
+            Preview in doc
+          </button>
         </div>
-      </div>
-      <div className="suggestion-side proposed">
-        <div className="suggestion-label">Proposed</div>
-        <div className="suggestion-text">
-          {suggestion.replacement === "" ? (
-            <span className="suggestion-deleted">(deleted)</span>
-          ) : (
-            <DiffText parts={diff.proposed} kind="add" />
-          )}
-        </div>
-      </div>
+      ) : (
+        <>
+          <div className="suggestion-side current">
+            <div className="suggestion-label">Current</div>
+            <div className="suggestion-text">
+              <DiffText parts={diff.current} kind="del" />
+            </div>
+          </div>
+          <div className="suggestion-side proposed">
+            <div className="suggestion-label">Proposed</div>
+            <div className="suggestion-text">
+              {suggestion.replacement === "" ? (
+                <span className="suggestion-deleted">(deleted)</span>
+              ) : (
+                <DiffText parts={diff.proposed} kind="add" />
+              )}
+            </div>
+          </div>
+        </>
+      )}
       {(onAccept || onReject) && (
         <div className="suggestion-actions">
           {onReject && (

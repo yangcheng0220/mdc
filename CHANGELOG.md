@@ -6,6 +6,7 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 
 ### Added
 - Suggestion cards in view mode now pin a reversible in-document diff preview, with a stacked fallback when the proposed edit changes block structure.
+- Large suggestion diffs now collapse to a line summary with a Preview in doc action, and clicking a suggestion mark opens its in-document preview.
 
 ### Changed
 - Conflict merge views now use the shared teal/violet diff colors for added and removed text.
