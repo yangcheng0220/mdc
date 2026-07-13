@@ -476,12 +476,14 @@ export const Editor = forwardRef<EditorHandle, {
     // than the viewport, centre otherwise).
     requestAnimationFrame(() => {
       if (suggestionPreviewRef.current !== preview) return;
-      const head = view.coordsAtPos(chipAt);
-      if (!head) return;
+      // Measure the chip's real position: the deleted-chunk widget of unknown
+      // height sits between the chip row and the first changed line.
+      const chip = view.dom.querySelector(".suggestion-preview-actions");
+      const chipTop = chip ? chip.getBoundingClientRect().top : null;
+      if (chipTop === null) return;
       const endPos = Math.min(changes.from + suggestion.replacement.length, view.state.doc.length);
       const tail = view.coordsAtPos(endPos);
-      const bottom = tail ? tail.bottom : head.bottom;
-      const chipTop = head.top - 44; // the chip's reserved row sits above the line
+      const bottom = tail ? tail.bottom : chipTop;
       if (chipTop >= 0 && bottom <= window.innerHeight) return;
       const height = bottom - chipTop;
       const target =
