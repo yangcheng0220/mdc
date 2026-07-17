@@ -12,7 +12,9 @@ import {
   openThreadsAwaitingAgent,
   readSidecar,
   sidecarPathFor,
+  threadSuggestionState,
   type Thread,
+  type ThreadSuggestionState,
 } from "./sidecar.js";
 
 // MDC_BASE_URL lets a caller (e.g. the CLI's `watch`) point at a non-default
@@ -120,14 +122,21 @@ export async function probeServer(
 }
 
 /**
- * Pending-agent threads for a root-relative file path. Resolves the absolute
- * path via the served root, then reads the sidecar through the core.
+ * Pending-agent threads and their suggestion state for a root-relative file.
+ * Resolves the absolute path via the served root, then reads the sidecar
+ * through the core.
  */
-export async function pendingFor(fileRel: string, baseUrl: string): Promise<Thread[]> {
+export async function pendingFor(
+  fileRel: string,
+  baseUrl: string,
+): Promise<Array<Thread & { suggestion_state: ThreadSuggestionState }>> {
   const index = await serverIndex(baseUrl);
   const root = index?.root;
   if (typeof root !== "string" || !root) return [];
   const mdPath = resolvePath(root, fileRel);
   const entries = readSidecar(sidecarPathFor(mdPath));
-  return openThreadsAwaitingAgent(entries, currentUser(dirname(mdPath)));
+  return openThreadsAwaitingAgent(entries, currentUser(dirname(mdPath))).map((thread) => ({
+    ...thread,
+    suggestion_state: threadSuggestionState(entries, thread.thread_id),
+  }));
 }

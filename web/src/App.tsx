@@ -23,6 +23,7 @@ import {
   postComment,
   type MovePreview,
   postDelete,
+  postDismissSuggestion,
   postEdit,
   postHandoffDone,
   postResolve,
@@ -63,6 +64,9 @@ import { useTabs } from "./useTabs.js";
 import { useToast } from "./useToast.js";
 
 type CardFocus = { threadId: string; view: SidebarView; nonce: number; scroll: boolean };
+// A nonce re-opens the same card for a later dismissal without making a
+// cancelled composer spring back on every render.
+type ReplyPrompt = { threadId: string; nonce: number };
 
 export function App() {
   const [activeFile, setActiveFile] = useActiveFile();
@@ -179,6 +183,7 @@ export function App() {
   const [outlineContent, setOutlineContent] = useState<string | null>(null);
   const [viewRawContent, setViewRawContent] = useState<string | null>(null);
   const [suggestionPreview, setSuggestionPreview] = useState<SuggestionPreviewRequest | null>(null);
+  const [replyPrompt, setReplyPrompt] = useState<ReplyPrompt | null>(null);
   const [editorRawContent, setEditorRawContent] = useState<string | null>(null);
   const [editorAnchorYs, setEditorAnchorYs] = useState<CommentAnchorY[]>([]);
   const [editorHost, setEditorHost] = useState<HTMLElement | null>(null);
@@ -188,6 +193,7 @@ export function App() {
     setEditorRawContent(null);
     setEditorAnchorYs([]);
     setSuggestionPreview(null);
+    setReplyPrompt(null);
   }, [activeFile]);
   const toggleEdit = useCallback((file: string) => {
     setDocChanged(false); // a switch shows fresh content either way — no stale banner
@@ -419,6 +425,16 @@ export function App() {
   // dropping clicks that straddle a repaint. Read the live focus path via a ref.
   const focusThreadCardRef = useRef(focusThreadCard);
   focusThreadCardRef.current = focusThreadCard;
+  const promptDismissalReason = useCallback(
+    (threadId: string) => {
+      setReplyPrompt((current) => ({
+        threadId,
+        nonce: (current?.nonce ?? 0) + 1,
+      }));
+      focusThreadCard(threadId, "open", { scroll: false });
+    },
+    [focusThreadCard],
+  );
   // Latest suggestion data behind the stable mark handler, so the editor's
   // underline clicks can pin without rebinding its click extension.
   const editMarkContext = useRef({ entries: comments.entries, editing: false });
@@ -755,36 +771,48 @@ export function App() {
         return;
       }
       try {
-        await postResolve(activeFile, threadId, user, "dismissed", suggestionId);
+        await postDismissSuggestion(activeFile, threadId, suggestionId, user);
         setSuggestionPreview(null);
         comments.reload();
         reloadIndex();
+        promptDismissalReason(threadId);
       } catch (error) {
         setSuggestionPreview(null);
         throw error;
       }
     },
-    [activeFile, comments, editingFiles, reloadIndex, user],
+    [activeFile, comments, editingFiles, promptDismissalReason, reloadIndex, user],
   );
   const onEditModeSuggestionDecision = useCallback(
     async (threadId: string, suggestionId: string, resolution: "applied" | "dismissed") => {
       if (!activeFile) return;
       try {
-        await postResolve(activeFile, threadId, user, resolution, suggestionId);
+        if (resolution === "applied") {
+          await postResolve(activeFile, threadId, user, "applied", suggestionId);
+        } else {
+          await postDismissSuggestion(activeFile, threadId, suggestionId, user);
+        }
         comments.reload();
         reloadIndex();
-        toast.show({
-          title: resolution === "applied" ? "Suggestion applied" : "Suggestion dismissed",
-          meta: resolution === "applied" ? "The editor change will be saved." : "The editor was restored.",
-        });
+        if (resolution === "applied") {
+          toast.show({
+            title: "Suggestion applied",
+            meta: "The editor change will be saved.",
+          });
+        } else {
+          promptDismissalReason(threadId);
+        }
       } catch {
         toast.show({
-          title: "Couldn't resolve suggestion",
+          title:
+            resolution === "applied"
+              ? "Couldn't resolve suggestion"
+              : "Couldn't dismiss suggestion",
           meta: resolution === "applied" ? "The editor change remains in the document." : "The editor was restored.",
         });
       }
     },
-    [activeFile, comments, reloadIndex, toast, user],
+    [activeFile, comments, promptDismissalReason, reloadIndex, toast, user],
   );
   const onPreviewSuggestion = useCallback(
     (threadId: string, suggestionId: string, suggestion: Suggestion) => {
@@ -1321,6 +1349,7 @@ export function App() {
             onResolve={onResolve}
             onApplySuggestion={onApplySuggestion}
             onDismissSuggestion={onDismissSuggestion}
+            replyPrompt={replyPrompt}
             onPreviewSuggestion={onPreviewSuggestion}
             onUnresolve={onUnresolve}
             onEdit={onEdit}

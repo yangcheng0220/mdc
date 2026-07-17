@@ -11,6 +11,7 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 - Suggestion cards in edit mode now pin an undoable inline merge chunk; accepting persists the edit, while rejecting or closing restores the buffer without autosaving the preview.
 
 ### Changed
+- Rejecting a suggestion now leaves its thread open, passes the turn to the agent, and focuses an optional reason reply instead of closing the conversation.
 - Conflict merge views now use the shared teal/violet diff colors for added and removed text.
 - The Files pane now labels open tabs and the workspace tree, with tab close controls visible at rest.
 

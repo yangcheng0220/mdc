@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { VERSION } from "../src/index.js";
 import { createApp } from "../src/server/app.js";
 import type { RootWatcher } from "../src/server/watcher.js";
-import { appendEntry, readSidecar, sidecarPathFor } from "../src/sidecar.js";
+import { appendEntry, deriveThreads, readSidecar, sidecarPathFor } from "../src/sidecar.js";
 import type { Entry } from "../src/threads.js";
 
 let dir: string;
@@ -444,11 +444,22 @@ describe("comment CRUD", () => {
     });
     expect(response.status).toBe(200);
     expect(readDoc("doc.md")).toBe(before);
-    expect(readSidecar(scPath).at(-1)).toMatchObject({
-      type: "resolved",
-      thread_id: suggestion.id,
-      suggestion_id: suggestion.id,
-      resolution: "dismissed",
+    const entries = readSidecar(scPath);
+    expect(entries.slice(-2)).toMatchObject([
+      {
+        type: "resolved",
+        thread_id: suggestion.id,
+        suggestion_id: suggestion.id,
+        resolution: "dismissed",
+      },
+      {
+        type: "unresolved",
+        thread_id: suggestion.id,
+      },
+    ]);
+    expect(deriveThreads(entries, USER)[0]).toMatchObject({
+      status: "open",
+      awaiting: "agent",
     });
 
     expect(

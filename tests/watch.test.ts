@@ -65,13 +65,21 @@ describe("watch", () => {
     vi.mocked(serverClient.serverIndex).mockResolvedValue({ root: ROOT });
     vi.mocked(handoff.waitForSignal).mockResolvedValue("review");
     vi.mocked(serverClient.pendingFor).mockResolvedValue([
-      { thread_id: "t1" } as never,
+      {
+        thread_id: "t1",
+        suggestion_state: { actionable: null, decided: { s1: "dismissed" } },
+      } as never,
     ]);
     const [code, out] = await run(["watch", FILE]);
     expect(code).toBe(0);
     const data = JSON.parse(out);
     expect(data.intent).toBe("review");
-    expect(data.pending).toEqual([{ thread_id: "t1" }]);
+    expect(data.pending).toEqual([
+      {
+        thread_id: "t1",
+        suggestion_state: { actionable: null, decided: { s1: "dismissed" } },
+      },
+    ]);
   });
 
   it("done intent", async () => {

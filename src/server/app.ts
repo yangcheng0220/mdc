@@ -25,6 +25,7 @@ import {
   VERSION,
   applySuggestion,
   appendEntry,
+  appendEntries,
   buildEntries,
   countOpenThreads,
   deriveThreads,
@@ -655,25 +656,31 @@ export function createApp(cfg: ServerConfig): {
       suggestion_id?: string;
     }>();
     const entries = readSidecar(scPath);
-    let entry: Entry;
+    let prepared: Entry[];
     try {
-      entry = buildEntries(
-        [{
-          type: "resolved",
-          thread_id: a.thread_id,
-          ...(a.resolution === undefined ? {} : { resolution: a.resolution }),
-          ...(a.suggestion_id === undefined ? {} : { suggestion_id: a.suggestion_id }),
-        }],
+      const batch = [{
+        type: "resolved",
+        thread_id: a.thread_id,
+        ...(a.resolution === undefined ? {} : { resolution: a.resolution }),
+        ...(a.suggestion_id === undefined ? {} : { suggestion_id: a.suggestion_id }),
+      }];
+      if (a.resolution === "dismissed") {
+        // Older readers keep qualified decisions across an unresolve. Pairing
+        // known events leaves the suggestion decided without closing the thread.
+        batch.push({ type: "unresolved", thread_id: a.thread_id });
+      }
+      prepared = buildEntries(
+        batch,
         entries,
         baseName(mdPath),
         a.author,
-      )[0]!;
+      );
     } catch (error) {
       if (error instanceof ValidationError) throw new HttpError(400, error.message);
       throw error;
     }
-    appendEntry(scPath, entry);
-    return c.json(entry);
+    appendEntries(scPath, prepared);
+    return c.json(prepared[0]);
   });
 
   // --- suggestions: apply --------------------------------------------------

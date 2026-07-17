@@ -83,6 +83,18 @@ function stackItems(items: HTMLElement[], list: HTMLElement, start = 6): number 
   return cursor;
 }
 
+function latestThreadDecision(
+  thread: DisplayThread,
+  decisions: Map<string, SuggestionResolution>,
+): SuggestionResolution | undefined {
+  const content = [thread.top, ...thread.replies];
+  for (let index = content.length - 1; index >= 0; index--) {
+    const decision = decisions.get(content[index]!.id);
+    if (decision) return decision;
+  }
+  return undefined;
+}
+
 export function Comments({
   threads,
   entries,
@@ -102,6 +114,7 @@ export function Comments({
   onResolve,
   onApplySuggestion,
   onDismissSuggestion,
+  replyPrompt,
   onPreviewSuggestion,
   onUnresolve,
   onEdit,
@@ -142,6 +155,7 @@ export function Comments({
     suggestion: Suggestion,
   ) => Promise<ApplySuggestionOutcome>;
   onDismissSuggestion: (threadId: string, suggestionId: string) => Promise<void>;
+  replyPrompt: { threadId: string; nonce: number } | null;
   onPreviewSuggestion: (threadId: string, suggestionId: string, suggestion: Suggestion) => void;
   onUnresolve: (threadId: string) => void;
   onEdit: (commentId: string, body: string) => void;
@@ -304,6 +318,7 @@ export function Comments({
                   key={t.top.id}
                   thread={t}
                   events={resolveEventsByThread(entries)}
+                  decision={latestThreadDecision(t, decisions)}
                   onUnresolve={onUnresolve}
                 />
               ))
@@ -317,6 +332,9 @@ export function Comments({
                   onResolve={onResolve}
                   onApplySuggestion={onApplySuggestion}
                   onDismissSuggestion={onDismissSuggestion}
+                  replyPromptNonce={
+                    replyPrompt?.threadId === t.top.id ? replyPrompt.nonce : undefined
+                  }
                   onPreviewSuggestion={editing ? undefined : onPreviewSuggestion}
                   onEdit={onEdit}
                   onRequestDelete={onRequestDelete}
@@ -507,6 +525,7 @@ function ThreadCard({
   onResolve,
   onApplySuggestion,
   onDismissSuggestion,
+  replyPromptNonce,
   onPreviewSuggestion,
   onEdit,
   onRequestDelete,
@@ -529,6 +548,7 @@ function ThreadCard({
     suggestion: Suggestion,
   ) => Promise<ApplySuggestionOutcome>;
   onDismissSuggestion: (threadId: string, suggestionId: string) => Promise<void>;
+  replyPromptNonce?: number;
   onPreviewSuggestion?: (threadId: string, suggestionId: string, suggestion: Suggestion) => void;
   onEdit: (commentId: string, body: string) => void;
   onRequestDelete: (commentId: string) => void;
@@ -545,6 +565,7 @@ function ThreadCard({
   const [expanded, setExpanded] = useState(false);
   const [replying, setReplying] = useState(false);
   const [replyBody, setReplyBody] = useState("");
+  const [reasonPrompt, setReasonPrompt] = useState(false);
   const [editing, setEditing] = useState(false);
   const [applyingId, setApplyingId] = useState<string | null>(null);
   const [dismissingId, setDismissingId] = useState<string | null>(null);
@@ -557,6 +578,13 @@ function ThreadCard({
   useEffect(() => {
     if (replying) replyRef.current?.focus();
   }, [replying]);
+
+  useEffect(() => {
+    if (replyPromptNonce === undefined) return;
+    setReasonPrompt(true);
+    setReplying(true);
+    replyRef.current?.focus();
+  }, [replyPromptNonce]);
 
   const showReplies = !foldable || expanded;
   const actionableSuggestionId = actionable?.id;
@@ -608,6 +636,7 @@ function ThreadCard({
     if (!body) return;
     onReply(top.id, body);
     setReplyBody("");
+    setReasonPrompt(false);
     setReplying(false);
   };
 
@@ -735,6 +764,16 @@ function ThreadCard({
       {replying ? (
         <form
           className="reply-form active"
+          onBlur={(event) => {
+            if (
+              reasonPrompt &&
+              !replyBody.trim() &&
+              !event.currentTarget.contains(event.relatedTarget as Node | null)
+            ) {
+              setReasonPrompt(false);
+              setReplying(false);
+            }
+          }}
           onSubmit={(e) => {
             e.preventDefault();
             submitReply();
@@ -742,7 +781,9 @@ function ThreadCard({
         >
           <textarea
             ref={replyRef}
-            placeholder="Write a reply..."
+            placeholder={
+              reasonPrompt ? "Why? (optional — helps the agent revise)" : "Write a reply..."
+            }
             value={replyBody}
             onChange={(e) => {
               setReplyBody(e.target.value);
@@ -754,6 +795,7 @@ function ThreadCard({
                 e.preventDefault();
                 submitReply();
               } else if (e.key === "Escape") {
+                setReasonPrompt(false);
                 setReplying(false);
                 setReplyBody("");
               }
@@ -763,6 +805,7 @@ function ThreadCard({
             <button
               type="button"
               onClick={() => {
+                setReasonPrompt(false);
                 setReplying(false);
                 setReplyBody("");
               }}
@@ -774,7 +817,14 @@ function ThreadCard({
         </form>
       ) : (
         <div className="reply-row">
-          <button type="button" className="reply-btn" onClick={() => setReplying(true)}>
+          <button
+            type="button"
+            className="reply-btn"
+            onClick={() => {
+              setReasonPrompt(false);
+              setReplying(true);
+            }}
+          >
             Reply
           </button>
         </div>
@@ -1032,13 +1082,19 @@ function EditForm({
 function ResolvedItem({
   thread,
   events,
+  decision,
   onUnresolve,
 }: {
   thread: DisplayThread;
   events: Map<string, Entry>;
+  decision?: SuggestionResolution;
   onUnresolve: (threadId: string) => void;
 }) {
   const ev = events.get(thread.top.id);
+  const outcome =
+    ev?.resolution === "applied" || ev?.resolution === "dismissed"
+      ? ev.resolution
+      : decision;
   const quote = ev?.anchor_snapshot?.quote ?? thread.top.anchor?.quote ?? "";
   const by = ev?.author ? `resolved by ${ev.author}` : "resolved";
   const when = ev?.timestamp ? ` · ${fmtTime(ev.timestamp)}` : "";
@@ -1056,9 +1112,9 @@ function ResolvedItem({
           {by}
           {when}
         </span>
-        {(ev?.resolution === "applied" || ev?.resolution === "dismissed") && (
+        {outcome && (
           <span className="suggestion-decision-chip">
-            {ev.resolution === "applied" ? "Applied" : "Dismissed"}
+            {outcome === "applied" ? "Applied" : "Dismissed"}
           </span>
         )}
         <button

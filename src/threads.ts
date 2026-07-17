@@ -154,6 +154,33 @@ export function actionableSuggestion(entries: Entry[], threadId: string): Entry 
   return undefined;
 }
 
+export interface ThreadSuggestionState {
+  actionable: string | null;
+  decided: Record<string, SuggestionResolution>;
+}
+
+/** Keep CLI commands and watch payloads on one suggestion-state shape. */
+export function threadSuggestionState(
+  entries: Entry[],
+  threadId: string,
+): ThreadSuggestionState {
+  const ids = new Set(
+    entries
+      .filter(
+        (entry) =>
+          entry.suggestion !== undefined &&
+          (entry.id === threadId || entry.parent_id === threadId),
+      )
+      .map((entry) => entry.id),
+  );
+  return {
+    actionable: actionableSuggestion(entries, threadId)?.id ?? null,
+    decided: Object.fromEntries(
+      [...decidedSuggestions(entries)].filter(([suggestionId]) => ids.has(suggestionId)),
+    ),
+  };
+}
+
 /**
  * comment_id -> latest edited body (last edit event wins). The JSONL keeps every
  * version; this resolves the effective body so an edited comment reads as its
@@ -238,10 +265,10 @@ export function survivingRepliesByParent(
  * Survival: a resolved thread is kept (flagged resolved); a top-level comment
  * deleted with no surviving replies drops entirely (the thread is gone).
  *
- * `user` is the configured "user" name — used to derive `awaiting`: if the
- * last surviving entry's author is the user, the ball is in the agent's court
- * (awaiting: agent); otherwise an agent spoke last (awaiting: you). Derived,
- * not stored.
+ * `user` is the configured "user" name — used to derive `awaiting` from the
+ * latest turn. Surviving comments/replies and qualified suggestion decisions
+ * are turns; lifecycle and edit/delete events are not. If the user acted last,
+ * the ball is in the agent's court (awaiting: agent). Derived, not stored.
  */
 export function deriveThreads(entries: Entry[], user: string): Thread[] {
   const resolved = resolvedThreadIds(entries);
@@ -258,7 +285,17 @@ export function deriveThreads(entries: Entry[], user: string): Thread[] {
       continue; // parent deleted, no replies left — thread is gone
     }
     const full = [top, ...replies];
-    const last = full[full.length - 1] as Entry;
+    const survivingIds = new Set(full.map((entry) => entry.id));
+    let last = top;
+    for (const entry of entries) {
+      const isSurvivingContent = !isEvent(entry) && survivingIds.has(entry.id);
+      const isSuggestionDecision =
+        entry.type === "resolved" &&
+        entry.thread_id === top.id &&
+        entry.suggestion_id !== undefined &&
+        (entry.resolution === "applied" || entry.resolution === "dismissed");
+      if (isSurvivingContent || isSuggestionDecision) last = entry;
+    }
     const anchor = top.anchor ?? {};
     const isResolved = resolved.has(top.id);
     // lifecycle: resolved wins; else the map (acknowledged); else pending.

@@ -104,6 +104,33 @@ describe("deriveThreads", () => {
     expect(t.reply_count).toBe(1);
   });
 
+  it("dismissal passes the open thread to the agent", () => {
+    const suggestion = {
+      ...comment("c1", "q1", "agent"),
+      suggestion: {
+        target: { quote: "q1", context: { before: "", after: "" } },
+        replacement: "next",
+      },
+    };
+    const entries = [
+      suggestion,
+      event("resolved", {
+        thread_id: "c1",
+        suggestion_id: "c1",
+        resolution: "dismissed",
+      }),
+      event("unresolved", { thread_id: "c1" }),
+    ];
+
+    const thread = sidecar.deriveThreads(entries, USER)[0]!;
+    expect(thread).toMatchObject({
+      status: "open",
+      awaiting: "agent",
+      last_author: USER,
+    });
+    expect(sidecar.actionableSuggestion(entries, "c1")).toBeUndefined();
+  });
+
   it("resolved thread kept and flagged", () => {
     const entries = [comment("c1", "q1"), event("resolved", { thread_id: "c1" })];
     const t = sidecar.deriveThreads(entries, USER)[0]!;
@@ -221,6 +248,10 @@ describe("open-thread helpers", () => {
       event("resolved", { thread_id: "c1", suggestion_id: "c1", resolution: "applied" }),
     ];
     expect(sidecar.decidedSuggestions(entries).get("c1")).toBe("applied");
+    expect(sidecar.threadSuggestionState(entries, "c1")).toEqual({
+      actionable: null,
+      decided: { c1: "applied" },
+    });
   });
 
   it("derives one actionable suggestion across supersede, delete, and decision events", () => {
@@ -266,6 +297,28 @@ describe("open-thread helpers", () => {
     ];
     const awaiting = sidecar.openThreadsAwaitingAgent(entries, USER);
     expect(new Set(awaiting.map((t) => t.thread_id))).toEqual(new Set(["c1"]));
+  });
+
+  it("includes a dismissed-open suggestion in agent-pending threads", () => {
+    const suggestion = {
+      ...comment("c1", "q1", "agent"),
+      suggestion: {
+        target: { quote: "q1", context: { before: "", after: "" } },
+        replacement: "next",
+      },
+    };
+    const entries = [
+      suggestion,
+      event("resolved", {
+        thread_id: "c1",
+        suggestion_id: "c1",
+        resolution: "dismissed",
+      }),
+      event("unresolved", { thread_id: "c1" }),
+    ];
+
+    expect(sidecar.openThreadsAwaitingAgent(entries, USER).map((thread) => thread.thread_id))
+      .toEqual(["c1"]);
   });
 
   it("count and prune", () => {
