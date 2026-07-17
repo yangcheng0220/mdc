@@ -1,5 +1,7 @@
 # Decisions are qualified resolves; a suggestion is decided at most once
 
+> Status: partially superseded by [ADR 0004](0004-dismissal-decides-without-resolving.md) — dismissal no longer resolves the thread, so it is no longer carried by a `resolved` event. Decided-at-most-once and the compatibility analysis below stand.
+
 Applying or dismissing a suggestion appends an ordinary `resolved` event carrying a resolution qualifier (applied | dismissed) and the id of the decided suggestion comment — not new event types. Sidecars are shared files read concurrently by whatever mdc versions are in the wild, and the two encodings degrade differently: old readers ignore unknown *fields* (a decided thread reads as plainly resolved — correct), but misread unknown event *types* as no-event (a decided thread comes back as an open thread awaiting the agent — corrupt). A decided suggestion is never decidable again: unresolving a thread reopens the conversation, not the decision.
 
 ## Consequences

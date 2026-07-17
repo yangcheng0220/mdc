@@ -32,7 +32,7 @@ The quoted doc text (plus surrounding context fingerprint) that locates a commen
 An anchor that can no longer be located in the current doc text. The thread survives; it just no longer points anywhere.
 
 **Awaiting**:
-Whose turn a thread is — the user's or the agent's — derived from who spoke last.
+Whose turn a thread is — the user's or the agent's — derived from who acted last: spoke, or decided a suggestion. Dismissing a suggestion is a turn; the thread passes to the agent.
 
 ### Suggestions
 
@@ -59,7 +59,7 @@ The outcome where the user accepted a suggestion and its replacement was written
 _Avoid_: accepted (as a thread state — "accept" is the user's action, "applied" is the outcome)
 
 **Dismissed**:
-The outcome where the user rejected a suggestion; the doc is untouched and the thread resolves.
+The outcome where the user rejected a suggestion; the doc is untouched. Dismissing decides the suggestion only — the thread stays open, with the ball passing to the agent. Closing the conversation is a separate, explicit resolve (unlike applying, which forces it — see Applied).
 _Avoid_: rejected (as a thread state — same action/outcome split as applied)
 
 ## Example dialogue
@@ -70,3 +70,5 @@ _Avoid_: rejected (as a thread state — same action/outcome split as applied)
 > **Expert:** Applying *is* resolving — one act. The replacement lands in the doc, which destroys the anchor's target, so the thread closes with its record intact rather than lingering orphaned.
 > **Dev:** Can the user tweak the replacement text before accepting?
 > **Expert:** No — suggestions are immutable. Editing a suggestion comment edits its prose body only. To change the proposal, someone posts a new suggestion in the thread.
+> **Dev:** And rejecting — does that close the thread like accepting does?
+> **Expert:** No. Applying closes the thread because the edit destroys the anchor's target; rejecting destroys nothing. The suggestion is dismissed — decided for good — but the thread stays open and passes to the agent. A reason from the user means refine; silence means "nothing to add," and the agent acknowledges and resolves.

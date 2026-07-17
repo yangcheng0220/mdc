@@ -12,7 +12,7 @@ An agent can attach a proposed edit — a concrete replacement for a quoted span
 - An empty replacement proposes deleting the target; the card renders the proposed side as an explicit "(deleted)" state.
 - A suggestion thread appears everywhere a comment thread does today: margin card, in-text mark (both modes, standard comment-mark grammar), file-tree badges, dashboard, `list-pending` / `get-thread` / `watch`.
 - When a thread contains multiple suggestions, only the latest is actionable; earlier ones render as superseded — diff still readable, no action buttons.
-- The agent instructions shipped by `mdc setup` change in the same release: a thread asking for a doc change is answered with a suggestion — never a direct edit to the `.md`, and never a prose-only proposal of an edit.
+- The agent instructions shipped by `mdc setup` change in the same release: a thread asking for a doc change is answered with a suggestion — never a direct edit to the `.md`, and never a prose-only proposal of an edit. And a dismissal is answered by its reason: dismissed with a reply → engage and re-propose in the thread; dismissed silently → read it as "no, and nothing to add" — acknowledge briefly and resolve the thread, never blind-guess a second version.
 - A suggestion comment can be edited and deleted like any comment. Editing changes the prose body only — the proposed text is immutable; to change a proposal, post a new suggestion in the thread (it supersedes) or reply. Deleting the comment carrying the actionable suggestion makes the latest surviving one actionable; if none remain, the thread continues as an ordinary comment thread.
 
 ### User reviews and decides (thread card, both modes)
@@ -21,11 +21,11 @@ An agent can attach a proposed edit — a concrete replacement for a quoted span
 - A card diff longer than a threshold (~10 lines) collapses to a one-line change summary plus a **Preview in doc** affordance — the card stays a compact index; reading a big change happens in the doc (next flow).
 - **Accept** (view mode): the file is written immediately, the doc re-renders in place — no reload banner, no confirm dialog (the diff is the confirmation surface). The thread resolves and its card shows an Applied indicator.
 - **Accept** (edit mode): the change lands in the editor buffer as if the user typed it — undoable with ⌘Z, persisted by autosave. Thread resolves the same way.
-- **Reject**: the thread resolves, the doc is untouched, the card shows a Dismissed indicator. Resolved suggestion cards always show which of the two happened.
-- Accept and resolve are one act: applying replaces the quoted text, which would orphan the thread's anchor, so the thread closes with its record (quote, diff, decision) intact instead of lingering as an orphaned open thread.
+- **Reject**: the suggestion is dismissed — the doc untouched, the card showing a Dismissed indicator — but the thread stays open: rejecting decides the suggestion, not the conversation. The dismissal counts as the user's turn — the thread flips to awaiting-agent and flows to a watching agent like any pending thread — and the card focuses the reply composer with an optional "why" prompt; a reason invites a revised suggestion, silence is fine too. Closing the conversation stays a separate, explicit resolve. Decided suggestion cards always show which of the two happened.
+- Accept and resolve are one act: applying replaces the quoted text, which would orphan the thread's anchor, so the thread closes with its record (quote, diff, decision) intact instead of lingering as an orphaned open thread. Reject deliberately does not share this — nothing is destroyed by declining (ADR 0004).
 - A suggestion is decided at most once. Reopening a decided thread reopens the conversation only — the file is never reverted, and the decided suggestion keeps its Applied/Dismissed indicator without regaining Accept/Reject. Re-proposing (or accepting after all, following a dismissal) takes a fresh suggestion in the thread.
 - **Refine**: the user replies in the composer; the thread flips back to awaiting-agent and surfaces to the agent like any pending thread. The agent answers with a revised suggestion in the same thread, which becomes the actionable one.
-- A toast confirms Accept; Reject needs none.
+- A toast confirms Accept; Reject needs none — the Dismissed indicator and focused composer are the feedback.
 
 ### Inline preview — reading the change in the doc
 
