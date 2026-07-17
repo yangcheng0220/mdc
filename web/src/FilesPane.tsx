@@ -11,7 +11,7 @@
  */
 
 import { useMemo, useState } from "react";
-import { buildTree, type TreeNode } from "./fileTree.js";
+import { buildTree, type TreeNode, workspaceRootName } from "./fileTree.js";
 import { FileIcon, FolderIcon, HtmlIcon, ImageIcon, PdfIcon } from "./icons.js";
 import { InlineCreate } from "./InlineCreate.js";
 import { Tabs } from "./Tabs.js";
@@ -40,6 +40,7 @@ function parentDir(path: string): string {
 }
 
 export function FilesPane({
+  root,
   paths,
   images,
   htmls,
@@ -53,6 +54,8 @@ export function FilesPane({
   onOpenInNewTab,
   actions,
 }: {
+  /** Absolute path returned by the index; only its folder name labels the tree. */
+  root: string;
   paths: string[];
   /** Which of `paths` are image files — rendered with the image icon. */
   images: string[];
@@ -127,6 +130,7 @@ export function FilesPane({
         onDragOver={(e) => drag.onDragOverDir(e, "")}
         onDrop={(e) => drag.onDropDir(e, "")}
       >
+        <div className="files-section-label">{workspaceRootName(root)}</div>
         <TreeLevel
           node={tree}
           depth={0}

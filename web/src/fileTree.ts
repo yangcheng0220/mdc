@@ -11,6 +11,12 @@ export interface TreeNode {
   files: string[];
 }
 
+/** The served workspace folder name, accepting either platform's separators. */
+export function workspaceRootName(root: string): string {
+  const trimmed = root.replace(/[\\/]+$/, "");
+  return trimmed.split(/[\\/]/).pop() || root;
+}
+
 export function buildTree(
   paths: string[],
   dirs: string[] = [],

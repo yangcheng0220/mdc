@@ -93,6 +93,7 @@ Rules of the inventory:
 For UI that isn't a shared component, match the established look rather than inventing one:
 
 - **Segmented control** — `pane-switcher`/`pane-tab` vocabulary (nav panes, dashboard filter); the compact view/edit toggle (`.mode-toggle`) is a sibling recipe of the same family. Labels may carry counts — the control doubles as the summary; don't add a separate summary line.
+- **Section label** — non-interactive headings that separate stacked sidebar regions: 10px / 700 / uppercase / `0.08em` letter-spacing / `--text-faint`. The Files pane uses this treatment for the open-tabs strip and workspace-root tree; labels scroll with their section and never behave as toggles.
 - **Quiet outline chip** — one recipe (11px / 600 / 1px 8px padding / `--border-mid` / radius 8): dashboard status chips, the orphaned tag. Meaning via border/text color only; a filled chip is not a variant of this pattern.
 - **Primary button** — solid `--text` background with `--surface` text, compact pill geometry: Hand off, composer submits, `ConfirmDialog` `.primary`, app-trust Run, and affirmative suggestion actions. Pair with the existing neutral outline-cancel treatment when an adjacent action should stay quieter.
 - **Parenthetical state** — file-level state ("doc deleted") is a red uppercase parenthetical beside the name, not a chip; the right column belongs to row status.

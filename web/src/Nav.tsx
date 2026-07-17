@@ -236,6 +236,7 @@ export function Nav({
       <div className="nav-content">
         {pane === "files" && (
           <FilesPane
+            root={root}
             paths={paths}
             images={images}
             htmls={htmls}

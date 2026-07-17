@@ -28,6 +28,7 @@ export function Tabs({ tabs }: { tabs: TabsState }) {
 
   return (
     <div className="tab-strip">
+      <div className="files-section-label">Open</div>
       {tabs.tabs.map((tab) => {
         const name = tab.file.split("/").pop() ?? tab.file;
         const active = tab.id === tabs.activeId;

@@ -61,6 +61,20 @@
   flex: 1;
   overflow-y: auto;
 }
+.files-section-label {
+  padding: 2px 8px 4px;
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+}
 .nav-dir-hdr {
   display: flex;
   align-items: center;
@@ -415,10 +429,6 @@
   padding: 2px 4px;
   border-radius: 4px;
   cursor: pointer;
-  visibility: hidden;
-}
-.tab-row:hover .tab-close {
-  visibility: visible;
 }
 .tab-close:hover {
   background: var(--border-mid);
