@@ -10,6 +10,8 @@ Implement the issue named in the prompt and open a GitHub pull request with the 
 
 mdc is one package with two build targets: `src/` (core sidecar/anchoring, the `mdc` CLI, and the Hono server under `src/server/`) and `web/src/` (the React frontend). Run all builds and git from inside your checkout/worktree, never the folder above it.
 
+**Branch before touching code — always from up-to-date main:** `git fetch origin && git switch -c feat/<short-title> origin/main` (or `fix/…`). Never base on another PR's branch: when that PR merges and its branch is deleted, GitHub auto-closes yours and it cannot be reopened retargeted. If you share a machine with the primary checkout, do this in your own worktree (`git worktree add ../mdc-<issue> origin/main`) and never switch the primary checkout's branch — it stays on `main`.
+
 ## Workflow
 
 ### 1. Fetch issue context
@@ -73,7 +75,7 @@ Before opening the PR, apply the `review-readiness` skill.
 
 ### 5. Open the pull request
 
-Create a branch first if you're not already on one — `fix/<short-title>` or `feat/<short-title>`. Commit only the intended changes with a clear what-it-does message.
+You are already on the branch you cut from `origin/main` at the start; confirm with `git branch --show-current` before committing. Commit only the intended changes with a clear what-it-does message.
 
 Open the PR with the `create-pr` skill (it runs `changelog` and uses `.github/pull_request_template.md`). Fill the template: link the issue, summarize the change, list the verification you ran and its results, and note any known limitations or verification gaps. Use `Closes #<n>` if the change fully resolves the issue, or `Related to #<n>` with the remaining work if it's partial.
 

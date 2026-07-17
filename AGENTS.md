@@ -29,6 +29,7 @@ Cross-cutting:
 
 ### Reviewing a PR
 
+- **Never switch the primary checkout's branch — it stays on `main`.** Do branch work (PR review, implementation) in a worktree: reviews happen in the persistent `../mdc-review` worktree (`cd ../mdc-review && gh pr checkout <n>`; create once with `git worktree add --detach ../mdc-review origin/main` + `npm install`), implementation in a worktree of its own branched from `origin/main`.
 - `gh pr checkout <n>`, read the PR body — especially its verification section.
 - Run the sign-off chain (below).
 - Live-verify the claimed behavior on the dev server (below), matching the check to the claim: measure precise-quantity claims, screenshot categorical ones.
