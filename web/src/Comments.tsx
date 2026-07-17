@@ -115,6 +115,7 @@ export function Comments({
   onApplySuggestion,
   onDismissSuggestion,
   replyPrompt,
+  onReplyPromptShown,
   onPreviewSuggestion,
   onUnresolve,
   onEdit,
@@ -156,6 +157,8 @@ export function Comments({
   ) => Promise<ApplySuggestionOutcome>;
   onDismissSuggestion: (threadId: string, suggestionId: string) => Promise<void>;
   replyPrompt: { threadId: string; nonce: number } | null;
+  /** One-shot ack: clears the prompt so card remounts can't re-fire it. */
+  onReplyPromptShown: () => void;
   onPreviewSuggestion: (threadId: string, suggestionId: string, suggestion: Suggestion) => void;
   onUnresolve: (threadId: string) => void;
   onEdit: (commentId: string, body: string) => void;
@@ -335,6 +338,7 @@ export function Comments({
                   replyPromptNonce={
                     replyPrompt?.threadId === t.top.id ? replyPrompt.nonce : undefined
                   }
+                  onReplyPromptShown={onReplyPromptShown}
                   onPreviewSuggestion={editing ? undefined : onPreviewSuggestion}
                   onEdit={onEdit}
                   onRequestDelete={onRequestDelete}
@@ -526,6 +530,7 @@ function ThreadCard({
   onApplySuggestion,
   onDismissSuggestion,
   replyPromptNonce,
+  onReplyPromptShown,
   onPreviewSuggestion,
   onEdit,
   onRequestDelete,
@@ -549,6 +554,7 @@ function ThreadCard({
   ) => Promise<ApplySuggestionOutcome>;
   onDismissSuggestion: (threadId: string, suggestionId: string) => Promise<void>;
   replyPromptNonce?: number;
+  onReplyPromptShown: () => void;
   onPreviewSuggestion?: (threadId: string, suggestionId: string, suggestion: Suggestion) => void;
   onEdit: (commentId: string, body: string) => void;
   onRequestDelete: (commentId: string) => void;
@@ -584,7 +590,8 @@ function ThreadCard({
     setReasonPrompt(true);
     setReplying(true);
     replyRef.current?.focus();
-  }, [replyPromptNonce]);
+    onReplyPromptShown();
+  }, [replyPromptNonce, onReplyPromptShown]);
 
   const showReplies = !foldable || expanded;
   const actionableSuggestionId = actionable?.id;

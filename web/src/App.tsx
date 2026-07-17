@@ -65,7 +65,8 @@ import { useToast } from "./useToast.js";
 
 type CardFocus = { threadId: string; view: SidebarView; nonce: number; scroll: boolean };
 // A nonce re-opens the same card for a later dismissal without making a
-// cancelled composer spring back on every render.
+// cancelled composer spring back on every render. One-shot: the card clears
+// it once shown, so remounts (sidebar-view or mode switches) can't re-fire it.
 type ReplyPrompt = { threadId: string; nonce: number };
 
 export function App() {
@@ -435,6 +436,7 @@ export function App() {
     },
     [focusThreadCard],
   );
+  const onReplyPromptShown = useCallback(() => setReplyPrompt(null), []);
   // Latest suggestion data behind the stable mark handler, so the editor's
   // underline clicks can pin without rebinding its click extension.
   const editMarkContext = useRef({ entries: comments.entries, editing: false });
@@ -1350,6 +1352,7 @@ export function App() {
             onApplySuggestion={onApplySuggestion}
             onDismissSuggestion={onDismissSuggestion}
             replyPrompt={replyPrompt}
+            onReplyPromptShown={onReplyPromptShown}
             onPreviewSuggestion={onPreviewSuggestion}
             onUnresolve={onUnresolve}
             onEdit={onEdit}
