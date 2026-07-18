@@ -1003,9 +1003,10 @@ ids come from list-pending's output. Run \`mdc <command> -h\` for detail.`,
 
   program
     .command("open")
-    .summary("open a .md in the browser")
+    .summary("open a workspace file in the browser")
     .description(
-      "Open a .md in the browser tab of the running mdc server (does not start it; " +
+      "Open a markdown, image, PDF, HTML, or Excalidraw file in the browser tab of " +
+        "the running mdc server (does not start it; " +
         "use `mdc serve` first). Exits non-zero with `down` if no server is running, or " +
         "`unreachable` if the file is outside the served root, so the caller " +
         "decides what to do.\n\n" +
@@ -1013,7 +1014,7 @@ ids come from list-pending's output. Run \`mdc <command> -h\` for detail.`,
         "each call adds the file as a tab and focuses it, so the last one opened " +
         "is active and the earlier ones stay open in the tab strip.",
     )
-    .argument("<file>", "absolute path to the .md")
+    .argument("<file>", "absolute path to an openable workspace file")
     .option("--base-url <url>", "server base URL", DEFAULT_BASE_URL)
     .action(async function (this: Command, file: string, opts: { baseUrl: string }) {
       setExit(await cmdOpen(file, opts.baseUrl));

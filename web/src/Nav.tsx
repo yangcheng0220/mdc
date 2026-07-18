@@ -39,6 +39,7 @@ export function Nav({
   images,
   htmls,
   pdfs,
+  drawings,
   dirs,
   activeFile,
   activeContent,
@@ -66,6 +67,8 @@ export function Nav({
   htmls: string[];
   /** Which of `paths` are PDF files (for the row icon). */
   pdfs: string[];
+  /** Which of `paths` are Excalidraw scenes (for the row icon). */
+  drawings: string[];
   dirs: string[];
   activeFile: string | null;
   /** Live markdown of the active doc (editor text in edit mode), for the outline. */
@@ -241,6 +244,7 @@ export function Nav({
             images={images}
             htmls={htmls}
             pdfs={pdfs}
+            drawings={drawings}
             dirs={dirs}
             activeFile={activeFile}
             tabs={tabs}

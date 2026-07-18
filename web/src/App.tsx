@@ -6,7 +6,7 @@
  * dashboard. The document fills the centre column and the comment cards the right.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ApiError,
   createFile,
@@ -63,6 +63,10 @@ import { usePresence } from "./usePresence.js";
 import { useTabs } from "./useTabs.js";
 import { useToast } from "./useToast.js";
 
+const ExcalidrawView = lazy(() =>
+  import("./ExcalidrawView.js").then((module) => ({ default: module.ExcalidrawView })),
+);
+
 type CardFocus = { threadId: string; view: SidebarView; nonce: number; scroll: boolean };
 // A nonce re-opens the same card for a later dismissal without making a
 // cancelled composer spring back on every render. One-shot: the card clears
@@ -99,25 +103,32 @@ export function App() {
   // commentable.
   const pdfKey = (index?.pdfs ?? []).join("\n");
   const pdfs = useMemo(() => (pdfKey ? pdfKey.split("\n") : []), [pdfKey]);
+  // Drawings are lazy-rendered, view-only, and stay outside markdown-specific flows.
+  const drawingKey = (index?.drawings ?? []).join("\n");
+  const drawings = useMemo(() => (drawingKey ? drawingKey.split("\n") : []), [drawingKey]);
   const openablePaths = useMemo(
-    () => [...paths, ...images, ...htmls, ...pdfs],
-    [paths, images, htmls, pdfs],
+    () => [...paths, ...images, ...htmls, ...pdfs, ...drawings],
+    [paths, images, htmls, pdfs, drawings],
   );
   const isImage = useCallback((file: string | null) => !!file && images.includes(file), [images]);
   const isHtml = useCallback((file: string | null) => !!file && htmls.includes(file), [htmls]);
   const isPdf = useCallback((file: string | null) => !!file && pdfs.includes(file), [pdfs]);
-  // A non-markdown openable file (image/html/pdf) — suppresses the md-only chrome.
-  const isNonMd = useCallback(
-    (file: string | null) => isImage(file) || isHtml(file) || isPdf(file),
-    [isImage, isHtml, isPdf],
+  const isDrawing = useCallback(
+    (file: string | null) => !!file && drawings.includes(file),
+    [drawings],
   );
-  // The index resolves a file's TYPE (md / image / html / pdf). Until it loads, the
+  // A non-markdown openable file — suppresses the md-only chrome.
+  const isNonMd = useCallback(
+    (file: string | null) => isImage(file) || isHtml(file) || isPdf(file) || isDrawing(file),
+    [isImage, isHtml, isPdf, isDrawing],
+  );
+  // The index resolves each openable file's type. Until it loads, the
   // type is unknown — treat a deep-linked file as "type pending" so we don't
   // briefly render it as a doc (which would fire 404 /api/md + /api/comments for
   // a non-md file before the index arrives to correct the routing).
   const typeKnown = index !== null;
   const tabs = useTabs(index ? openablePaths : null, activeFile, setActiveFile);
-  // A non-md file (image/html/pdf) has no comments; don't fetch (404s /api/comments).
+  // A non-md file has no comments; don't fetch (404s /api/comments).
   // Also hold off until the index loads — until then a deep-linked file's type is
   // unknown, and fetching comments for a non-md file would 404.
   const comments = useComments(typeKnown && !isNonMd(activeFile) ? activeFile : null);
@@ -230,6 +241,17 @@ export function App() {
   const editorRef = useRef<EditorHandle | null>(null);
   const onDocChanged = useCallback(
     (file: string) => {
+      // Drawings are read-only, so every disk event is safe to apply immediately.
+      if (isDrawing(file)) {
+        if (file === activeFile) {
+          setDocChanged(false);
+          setDocReloadNonce((nonce) => nonce + 1);
+        } else {
+          tabs.markUnread(file);
+          tabs.markStale(file);
+        }
+        return;
+      }
       // A genuine external change to the active file: in edit mode it's a
       // conflict for the editor (which pauses autosave and offers a real
       // theirs-vs-yours choice); in view mode it's the opt-in reload banner —
@@ -264,7 +286,7 @@ export function App() {
         tabs.markStale(file); // focusing this tab later reloads its content
       }
     },
-    [activeFile, tabs, editingFiles],
+    [activeFile, tabs, editingFiles, isDrawing],
   );
   // `mdc open` while the server is up: open the file as a tab and focus it, in
   // place — no new browser tab. Open in a new app-tab (or focus if already open).
@@ -863,13 +885,16 @@ export function App() {
     return () => document.body.classList.remove("app-empty");
   }, [activeFile]);
 
-  // An open iframe-backed file fills the viewport with a self-scrolling frame, so the
+  // An iframe or drawing surface fills the viewport with its own interaction area, so the
   // OUTER page must not also scroll. Lock the layout to the viewport (same as
   // app-empty) while an iframe-backed view is active.
   useEffect(() => {
-    document.body.classList.toggle("iframe-active", isHtml(activeFile) || isPdf(activeFile));
+    document.body.classList.toggle(
+      "iframe-active",
+      isHtml(activeFile) || isPdf(activeFile) || isDrawing(activeFile),
+    );
     return () => document.body.classList.remove("iframe-active");
-  }, [activeFile, isHtml, isPdf]);
+  }, [activeFile, isHtml, isPdf, isDrawing]);
 
   // Freeze background scroll while a modal (settings / ⌘K) is open. A non-passive
   // wheel handler cancels any scroll that wouldn't be consumed by an actually-
@@ -1218,6 +1243,7 @@ export function App() {
           images={images}
           htmls={htmls}
           pdfs={pdfs}
+          drawings={drawings}
           dirs={dirs}
           activeFile={activeFile}
           activeContent={outlineContent}
@@ -1250,7 +1276,7 @@ export function App() {
             onToggleNav={() => panels.toggle("nav")}
             onToggleSidebar={() => panels.toggle("sidebar")}
             editing={!!activeFile && editingFiles.has(activeFile)}
-            // No view⇄edit toggle for a non-md file (image/html/pdf aren't text-editable here).
+            // Non-markdown surfaces are view-only here.
             onToggleEdit={activeFile && !isNonMd(activeFile) ? () => toggleEdit(activeFile) : undefined}
             saveState={activeFile && editingFiles.has(activeFile) ? saveState : "idle"}
             isNonMd={isNonMd(activeFile)}
@@ -1285,6 +1311,10 @@ export function App() {
               <HtmlSurface file={activeFile} reloadNonce={docReloadNonce} />
             ) : activeFile && isPdf(activeFile) ? (
               <PdfView file={activeFile} reloadNonce={docReloadNonce} />
+            ) : activeFile && isDrawing(activeFile) ? (
+              <Suspense fallback={<div className="doc drawing-view" />}>
+                <ExcalidrawView file={activeFile} reloadNonce={docReloadNonce} />
+              </Suspense>
             ) : activeFile && editingFiles.has(activeFile) ? (
               <Editor
                 ref={editorRef}
@@ -1451,6 +1481,8 @@ export function App() {
                   ? "Removes this HTML file. This can't be undone."
                   : isPdf(fileDelete.path)
                     ? "Removes this PDF file. This can't be undone."
+                    : isDrawing(fileDelete.path)
+                      ? "Removes this drawing. This can't be undone."
                     : "Removes the document and its comments. This can't be undone."
               : folderDeleteMessage(fileDelete.docs, fileDelete.withComments)
           }

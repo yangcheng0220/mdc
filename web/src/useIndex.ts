@@ -22,7 +22,7 @@ export interface IndexState {
   reload: () => void;
 }
 
-/** Path list + open-thread counts + dirs + images + htmls + pdfs — changes on any
+/** Path list + open-thread counts + dirs + non-markdown surfaces — changes on any
  *  add/remove/rename, a count shift, or an (empty) folder created/removed. */
 function fingerprint(idx: IndexResponse): string {
   const files = idx.files.map((f) => `${f.path}:${f.openThreadCount}`).sort();
@@ -30,10 +30,11 @@ function fingerprint(idx: IndexResponse): string {
   const images = [...idx.images].sort();
   const htmls = [...idx.htmls].sort();
   const pdfs = [...idx.pdfs].sort();
+  const drawings = [...idx.drawings].sort();
   return (
     `${idx.mdcVersion}\n--files--\n${files.join("\n")}\n--dirs--\n${dirs.join("\n")}` +
     `\n--images--\n${images.join("\n")}\n--htmls--\n${htmls.join("\n")}` +
-    `\n--pdfs--\n${pdfs.join("\n")}`
+    `\n--pdfs--\n${pdfs.join("\n")}\n--drawings--\n${drawings.join("\n")}`
   );
 }
 

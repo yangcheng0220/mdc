@@ -12,7 +12,7 @@
 
 import { useMemo, useState } from "react";
 import { buildTree, type TreeNode, workspaceRootName } from "./fileTree.js";
-import { FileIcon, FolderIcon, HtmlIcon, ImageIcon, PdfIcon } from "./icons.js";
+import { DrawingIcon, FileIcon, FolderIcon, HtmlIcon, ImageIcon, PdfIcon } from "./icons.js";
 import { InlineCreate } from "./InlineCreate.js";
 import { Tabs } from "./Tabs.js";
 import type { Tabs as TabsState } from "./useTabs.js";
@@ -45,6 +45,7 @@ export function FilesPane({
   images,
   htmls,
   pdfs,
+  drawings,
   dirs,
   activeFile,
   tabs,
@@ -63,6 +64,8 @@ export function FilesPane({
   htmls: string[];
   /** Which of `paths` are PDF files — rendered with the PDF icon. */
   pdfs: string[];
+  /** Which of `paths` are Excalidraw scenes — rendered with the drawing icon. */
+  drawings: string[];
   dirs: string[];
   activeFile: string | null;
   tabs: TabsState;
@@ -78,6 +81,7 @@ export function FilesPane({
   const imageSet = useMemo(() => new Set(images), [images]);
   const htmlSet = useMemo(() => new Set(htmls), [htmls]);
   const pdfSet = useMemo(() => new Set(pdfs), [pdfs]);
+  const drawingSet = useMemo(() => new Set(drawings), [drawings]);
 
   // Drag-to-move state: the path being dragged, and the folder currently hovered
   // as a drop target (for the `.drop-into` highlight). "" = root; null = none.
@@ -139,6 +143,7 @@ export function FilesPane({
           imageSet={imageSet}
           htmlSet={htmlSet}
           pdfSet={pdfSet}
+          drawingSet={drawingSet}
           onToggleDir={onToggleDir}
           onOpenFile={onOpenFile}
           onOpenInNewTab={onOpenInNewTab}
@@ -167,6 +172,7 @@ function TreeLevel({
   imageSet,
   htmlSet,
   pdfSet,
+  drawingSet,
   onToggleDir,
   onOpenFile,
   onOpenInNewTab,
@@ -180,6 +186,7 @@ function TreeLevel({
   imageSet: Set<string>;
   htmlSet: Set<string>;
   pdfSet: Set<string>;
+  drawingSet: Set<string>;
   onToggleDir: (path: string) => void;
   onOpenFile: (file: string) => void;
   onOpenInNewTab: (file: string) => void;
@@ -230,7 +237,9 @@ function TreeLevel({
             onContextMenu={(e) => actions.onContextMenu(e, { kind: "file", path: file })}
           >
             <span className="nav-file-icon">
-              {imageSet.has(file) ? (
+              {drawingSet.has(file) ? (
+                <DrawingIcon />
+              ) : imageSet.has(file) ? (
                 <ImageIcon />
               ) : htmlSet.has(file) ? (
                 <HtmlIcon />
@@ -286,6 +295,7 @@ function TreeLevel({
                 imageSet={imageSet}
                 htmlSet={htmlSet}
                 pdfSet={pdfSet}
+                drawingSet={drawingSet}
                 onToggleDir={onToggleDir}
                 onOpenFile={onOpenFile}
                 onOpenInNewTab={onOpenInNewTab}

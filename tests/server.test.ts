@@ -252,6 +252,63 @@ describe("image files", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Excalidraw scenes (standalone, interactive, openable-but-not-commentable)
+// ---------------------------------------------------------------------------
+
+describe("drawing files", () => {
+  const SCENE = JSON.stringify({
+    type: "excalidraw",
+    version: 2,
+    source: "test",
+    elements: [],
+    appState: {},
+    files: {},
+  });
+
+  it("lists drawings in a separate channel and reads their original JSON", async () => {
+    writeDoc("drawings/scene.excalidraw", SCENE);
+    writeDoc("drawings/scene.excalidraw.json", SCENE);
+    const data = (await (await req("/api/index")).json()) as {
+      files: { path: string }[];
+      drawings: string[];
+    };
+    expect(data.drawings).toEqual([
+      "drawings/scene.excalidraw",
+      "drawings/scene.excalidraw.json",
+    ]);
+    expect(data.files.map((file) => file.path)).not.toContain("drawings/scene.excalidraw");
+
+    const drawing = (await (
+      await req("/api/drawing?file=drawings%2Fscene.excalidraw")
+    ).json()) as { content: string; filename: string; path: string; version: string };
+    expect(drawing).toMatchObject({
+      content: SCENE,
+      filename: "scene.excalidraw",
+      path: "drawings/scene.excalidraw",
+    });
+    expect(drawing.version.length).toBeGreaterThan(0);
+  });
+
+  it("rejects non-drawing paths and accepts drawings for open", async () => {
+    writeDoc("scene.excalidraw", SCENE);
+    await req("/api/index");
+    expect((await req("/api/drawing?file=doc.md")).status).toBe(404);
+    expect((await req("/api/drawing?file=missing.excalidraw")).status).toBe(404);
+
+    const opened = await post("/api/open", { file: "scene.excalidraw" });
+    expect(opened.status).toBe(409);
+    expect(await opened.json()).toMatchObject({ reason: "no browser tab listening" });
+  });
+
+  it("deletes a drawing through the generic file route", async () => {
+    writeDoc("scene.excalidraw", SCENE);
+    const deleted = await req("/api/file?file=scene.excalidraw", { method: "DELETE" });
+    expect(deleted.status).toBe(200);
+    expect(existsSync(join(dir, "scene.excalidraw"))).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // HTML files (standalone, sandboxed-iframe, openable-but-not-commentable)
 // ---------------------------------------------------------------------------
 

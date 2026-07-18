@@ -35,6 +35,12 @@ export const IMAGE_EXTS = new Set([
 const HTML_EXTS = new Set([".html", ".htm"]);
 const PDF_EXTS = new Set([".pdf"]);
 
+/** Drawing names need suffix checks because `.excalidraw.json` has two dots. */
+export function isDrawingName(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower.endsWith(".excalidraw") || lower.endsWith(".excalidraw.json");
+}
+
 /** Lowercased extension including the dot, or "" if none. */
 function extOf(name: string): string {
   const i = name.lastIndexOf(".");
@@ -133,6 +139,15 @@ export function buildPdfIndex(root: string, deny: Set<string>): Set<string> {
   const out = new Set<string>();
   for (const [rel, name] of walkFiles(root, deny)) {
     if (PDF_EXTS.has(extOf(name))) out.add(rel);
+  }
+  return out;
+}
+
+/** Relative posix paths of every Excalidraw scene under root. */
+export function buildDrawingIndex(root: string, deny: Set<string>): Set<string> {
+  const out = new Set<string>();
+  for (const [rel, name] of walkFiles(root, deny)) {
+    if (isDrawingName(name)) out.add(rel);
   }
   return out;
 }

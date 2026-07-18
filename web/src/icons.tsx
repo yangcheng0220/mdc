@@ -69,6 +69,16 @@ export function PdfIcon({ size = 14 }: { size?: number }) {
   );
 }
 
+export function DrawingIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...stroke} strokeWidth={1.8}>
+      <path d="M4 18.5 15.8 6.7l1.5 1.5L5.5 20H4v-1.5Z" />
+      <path d="m14.5 8 1.7-1.7a1.4 1.4 0 0 1 2 0l.5.5a1.4 1.4 0 0 1 0 2L17 10.5" />
+      <path d="M4 4h7M4 9h4" />
+    </svg>
+  );
+}
+
 export function FolderIcon({ size = 14, open = false }: { size?: number; open?: boolean }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" {...stroke} strokeWidth={1.8}>

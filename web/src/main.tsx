@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App.js";
 import { applyStoredTheme, startSystemThemeWatcher } from "./theme.js";
+import "@fontsource-variable/plus-jakarta-sans";
 import "highlight.js/styles/github.css";
 import "./styles/hljs-dark.css";
 import "./styles/tokens.css";

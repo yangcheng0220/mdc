@@ -28,6 +28,8 @@ export interface IndexResponse {
   /** PDF files under root — openable through the browser's native PDF viewer,
    *  but not commentable; same separate-channel reasoning as `images`. */
   pdfs: string[];
+  /** Excalidraw scenes under root — openable and interactive, but not commentable. */
+  drawings: string[];
 }
 
 export interface DocResponse {
@@ -65,6 +67,11 @@ export function fetchIndex(): Promise<IndexResponse> {
 /** A document's raw markdown content. */
 export function fetchDoc(file: string): Promise<DocResponse> {
   return getJson<DocResponse>(`/api/md?file=${encodeURIComponent(file)}`);
+}
+
+/** Raw Excalidraw scene JSON for a standalone drawing surface. */
+export function fetchDrawing(file: string): Promise<DocResponse> {
+  return getJson<DocResponse>(`/api/drawing?file=${encodeURIComponent(file)}`);
 }
 
 /** Image URL with an optional cache-buster for standalone image surfaces. */
