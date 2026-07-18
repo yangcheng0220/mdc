@@ -4,6 +4,8 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-18
+
 ### Added
 - Suggestion cards in view mode now pin a reversible in-document diff preview, with a stacked fallback when the proposed edit changes block structure.
 - Pinned suggestion previews now include floating Accept, Reject, and Close actions for deciding changes in place.
