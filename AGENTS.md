@@ -34,7 +34,7 @@ Cross-cutting:
 - Run the sign-off chain (below).
 - Live-verify the claimed behavior on the dev server (below), matching the check to the claim: measure precise-quantity claims, screenshot categorical ones.
 - If the PR reports a check it could **not** verify, reproduce that check before merging — never merge with "will eyeball it later." An unverified check on the exact surface under change is where the bugs are.
-- **After a squash-merge, retire the implementer's worktree**: confirm it is clean and its content diff against main is empty (`git diff origin/main..<branch> --stat`), then `git worktree remove <path>` (`--force` only clears untracked build output) and `git branch -D <branch>` — a squash-merge leaves the local branch behind because its commits aren't ancestors of main.
+- **After a squash-merge, retire the implementer's worktree**: confirm it is clean and its content diff against main is empty (`git diff origin/main..<branch> --stat`), then `git worktree remove <path>` (`--force` only clears untracked build output) and `git branch -D <branch>` — a squash-merge leaves the local branch behind because its commits aren't ancestors of main. Finish by verifying the remote branch is gone too (`git ls-remote --heads origin`): `gh pr merge --delete-branch` silently skips the remote delete when the local delete fails.
 
 ## Running mdc locally
 
