@@ -1,8 +1,8 @@
 # Suggestions — tech spec
 
-Two bounded slices. **v1 (shipped, #6–#11)**: the Approach / Test plan / Issues / Risks sections below describe the code as it stands. **Inline preview (in progress)**: its own approach, test plan, and risks at the end; tickets in *Issues — inline preview*.
+Three bounded slices. **v1 (shipped, #6–#11)**: the Approach / Test plan / Issues / Risks sections below describe the original suggestion implementation. **Dismissal without resolution (#42)**: its compatibility encoding, turn derivation, UI behavior, and tests follow the v1 risks. **Inline preview (in progress)**: its own approach, test plan, and risks are at the end; tickets in *Issues — inline preview*.
 
-Implements [PRODUCT.md](./PRODUCT.md). Grammar decisions are settled in `docs/adr/0001` (self-contained strict targets) and `docs/adr/0002` (qualified resolves, decided-at-most-once); vocabulary per `CONTEXT.md`.
+Implements [PRODUCT.md](./PRODUCT.md). Grammar decisions are settled in `docs/adr/0001` (self-contained strict targets), `docs/adr/0002` (qualified resolves, decided-at-most-once), and `docs/adr/0004` (dismissal decides without resolving); vocabulary per `CONTEXT.md`.
 
 ## Approach
 
@@ -66,6 +66,33 @@ Dependency-ordered tracer bullets (each blocked by the previous unless noted):
 
 ---
 
+# Dismissal without resolution
+
+Implements ADR 0004 and issue #42 without adding an event type that older readers would ignore.
+
+## Approach — compatible decision encoding
+
+- A dismissal appends two existing events in one atomic sidecar write: first a qualified `resolved` event with `resolution: "dismissed"` and `suggestion_id`, then an ordinary `unresolved` event for the same thread. Current readers derive the decision from every qualified resolve and the conversation state from the latest resolve/unresolve event, so the suggestion is permanently dismissed while the thread is open.
+- This pair is safe for 0.2.x readers. They already preserve a qualified decision across a later unresolve, so they also derive the suggestion as decided and not actionable while showing the thread open. Both lines use known event types and fields; no mixed-version reader can expose a double-decide path.
+- `POST /api/comments/resolve` keeps accepting the existing dismissal payload for compatibility with already-built frontends, but prepares and appends the pair when `resolution` is `dismissed`. Ordinary resolves and applied decisions remain single events. `buildEntries` validates the pair sequentially, preserving the existing actionable-only and decided-at-most-once guards.
+- `deriveThreads` treats a qualified suggestion decision as a turn alongside surviving comments and replies. Lifecycle, edit, and delete events do not count as turns. The dismissing user's decision therefore makes the reopened thread `awaiting: "agent"`; a later reply or suggestion becomes the latest turn normally. `list-pending`, file badges, and `watch` inherit this through `openThreadsAwaitingAgent`.
+
+## Approach — review surfaces
+
+- Every Reject entry point continues through `onDismissSuggestion`: margin card, orphaned card, pinned view-mode chip, and edit-mode inline chunk. After the sidecar pair lands, the Open card stays visible with its Dismissed indicator and no decision buttons.
+- The app opens the sidebar if necessary and sends a one-shot prompt nonce to that thread card. The card opens and focuses the shared reply composer with `Why? (optional — helps the agent revise)`. Escape, Cancel, or blurring an empty dismissal prompt collapses it without posting a content line; a later ordinary Reply returns to the normal placeholder.
+- A successful dismissal has no toast. View and edit mode use the Dismissed indicator plus focused composer as feedback. Accept behavior and its confirmation toast are unchanged.
+- `docs/agent-setup.md` describes the receiving protocol: a dismissal followed by a reason is a refine request; a silent dismissal is acknowledged briefly and then resolved; neither path blind-guesses a replacement.
+
+## Test plan — dismissal without resolution
+
+- Core: a qualified dismissal followed by unresolve remains decided and open, changes `awaiting` to the dismissing user, appears in `openThreadsAwaitingAgent`, and keeps the existing second-decision rejection.
+- CLI/server: `list-pending` reports the dismissed-open thread with `actionable: null`; the resolve route writes the two-event pair atomically and leaves the document byte-identical.
+- Live (both builds, disposable workspace, scratch port): reject from the margin card, pinned chip, edit-mode chunk, and orphaned card; verify each keeps the thread open, removes decision actions, focuses the optional-reason composer, writes no document bytes, and reaches `list-pending`/`watch`. Then resolve and unresolve once to verify the Dismissed indicator persists. Recheck one Accept path for unchanged apply-and-resolve behavior.
+- Sign-off: `npm run typecheck:web && npm run typecheck && npm test && npm run knip`.
+
+---
+
 # Inline preview slice (planned)
 
 Implements the "Inline preview" flow + the card-collapse bullet in [PRODUCT.md](./PRODUCT.md). No sidecar-grammar, CLI, or server changes — this is a rendering/interaction layer over shipped v1; accept/reject reuse the existing `onApplySuggestion`/`onDismissSuggestion` handlers (`web/src/App.tsx`).
@@ -89,7 +116,7 @@ Implements the "Inline preview" flow + the card-collapse bullet in [PRODUCT.md](
 ## Test plan — inline preview
 
 - Vitest: `blockRangeForSpan` alignment on fixture docs (paragraph, list, heading, fenced code, html block, doc-boundary targets; `space`-token skipping; misalignment → null). Pairing decision (1:1 word-marked vs stacked fallback) as a pure function. Collapse threshold logic.
-- Live (both builds, disposable workspace, 8099): pin from card → affected paragraph swaps to marked diff, rest of doc untouched; pin from the in-text mark → same + card focused; Esc → doc and scroll position restored (verify on a doc long enough to scroll); structure-changing suggestion (adds a heading) → stacked fallback; decide from the floating chip → same outcome as the card path (file written / thread resolved); section-sized suggestion → card shows `+X −Y` summary and Preview in doc. Edit mode: pin → inline chunk at target, ⌘Z/close restores, disk unchanged while pinned (check mtime/content), Accept → resolve + autosave resumes.
+- Live (both builds, disposable workspace, 8099): pin from card → affected paragraph swaps to marked diff, rest of doc untouched; pin from the in-text mark → same + card focused; Esc → doc and scroll position restored (verify on a doc long enough to scroll); structure-changing suggestion (adds a heading) → stacked fallback; decide from the floating chip → same outcome as the card path (Accept writes and resolves; Reject leaves the document untouched and the thread open); section-sized suggestion → card shows `+X −Y` summary and Preview in doc. Edit mode: pin → inline chunk at target, ⌘Z/close restores, disk unchanged while pinned (check mtime/content), Accept → resolve + autosave resumes.
 - Sign-off: `npm run typecheck:web && npm run typecheck && npm test && npm run knip`.
 
 ## Issues — inline preview

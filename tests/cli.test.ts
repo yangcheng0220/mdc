@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { parse as parseToml } from "smol-toml";
 import { buildProgram, main, resolveServeRoot } from "../src/cli.js";
 import { printStartupBanner } from "../src/server/serve.js";
-import { deriveThreads, readSidecar, sidecarPathFor } from "../src/sidecar.js";
+import { appendEntries, deriveThreads, readSidecar, sidecarPathFor } from "../src/sidecar.js";
 
 let dir: string;
 let md: string;
@@ -127,6 +127,55 @@ describe("cli", () => {
     const thread = JSON.parse(getOut);
     expect(thread.entries[0].suggestion).toEqual(entry.suggestion);
     expect(thread.suggestion_state).toEqual({ actionable: tid, decided: {} });
+  });
+
+  it("lists a dismissed-open suggestion as pending", async () => {
+    const [code, out] = await run([
+      "--author",
+      "agent",
+      "comment",
+      md,
+      "--quote",
+      "quick brown fox",
+      "--body",
+      "tighten this",
+      "--suggest",
+      "swift fox",
+    ]);
+    expect(code).toBe(0);
+    const tid = out.split(/:(.*)/s)[1]!.trim();
+    appendEntries(sidecarPathFor(md), [
+      {
+        id: "dismissed",
+        type: "resolved",
+        thread_id: tid,
+        suggestion_id: tid,
+        resolution: "dismissed",
+        author: "dana",
+        timestamp: "2026-07-17T00:00:00.000Z",
+      },
+      {
+        id: "reopened",
+        type: "unresolved",
+        thread_id: tid,
+        author: "dana",
+        timestamp: "2026-07-17T00:00:00.001Z",
+      },
+    ]);
+
+    const [pendingCode, pendingOut] = await run(["list-pending", md]);
+    expect(pendingCode).toBe(0);
+    expect(JSON.parse(pendingOut).pending).toMatchObject([
+      {
+        thread_id: tid,
+        status: "open",
+        awaiting: "agent",
+        suggestion_state: {
+          actionable: null,
+          decided: { [tid]: "dismissed" },
+        },
+      },
+    ]);
   });
 
   it("warns when a default suggestion target contains Markdown syntax", async () => {
