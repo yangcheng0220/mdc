@@ -201,6 +201,19 @@ export function resolvePdfFile(root: string, rel: string): string {
   return pdfPath;
 }
 
+/** Validate a drawing by its own indexed path. */
+export function resolveIndexedDrawing(drawingIndex: Set<string>, pathParam: string): string | null {
+  return drawingIndex.has(pathParam) ? pathParam : null;
+}
+
+/** Validate that a drawing path stays under root and exists on disk. */
+export function resolveDrawingFile(root: string, rel: string): string {
+  const drawingPath = resolve(root, rel);
+  if (!isUnderRoot(root, drawingPath)) throw new HttpError(404, "path traversal blocked");
+  if (!existsSync(drawingPath)) throw new HttpError(404, `drawing not found on disk: ${rel}`);
+  return drawingPath;
+}
+
 /** posix basename of a path (for tombstone `file` fields). */
 export function baseName(p: string): string {
   return posix.basename(toPosix(p));

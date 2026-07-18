@@ -41,6 +41,7 @@ import {
 } from "../index.js";
 import {
   buildDirIndex,
+  buildDrawingIndex,
   buildHtmlIndex,
   buildImageIndex,
   buildIndex,
@@ -58,10 +59,12 @@ import {
   HttpError,
   baseName,
   resolveFile,
+  resolveDrawingFile,
   resolveHtmlFile,
   resolveImage,
   resolveImageFile,
   resolveIndexedHtml,
+  resolveIndexedDrawing,
   resolveIndexedImage,
   resolveIndexedPdf,
   resolvePdfFile,
@@ -82,6 +85,7 @@ export interface ServerConfig {
 /** Per-server mutable index state, rebuilt on each index/dashboard hit. */
 interface IndexState {
   index: Set<string>;
+  drawingIndex: Set<string>;
   imageIndex: Set<string>;
   htmlIndex: Set<string>;
   pdfIndex: Set<string>;
@@ -102,6 +106,7 @@ export function createApp(cfg: ServerConfig): {
   const deny = denyFrom(cfg.denyRaw);
   const state: IndexState = {
     index: buildIndex(cfg.root, deny),
+    drawingIndex: buildDrawingIndex(cfg.root, deny),
     imageIndex: buildImageIndex(cfg.root, deny),
     htmlIndex: buildHtmlIndex(cfg.root, deny),
     pdfIndex: buildPdfIndex(cfg.root, deny),
@@ -120,6 +125,7 @@ export function createApp(cfg: ServerConfig): {
   /** Rebuild the indexes (so newly added/removed files show up). */
   function rescan(): void {
     state.index = buildIndex(cfg.root, deny);
+    state.drawingIndex = buildDrawingIndex(cfg.root, deny);
     state.imageIndex = buildImageIndex(cfg.root, deny);
     state.htmlIndex = buildHtmlIndex(cfg.root, deny);
     state.pdfIndex = buildPdfIndex(cfg.root, deny);
@@ -166,12 +172,13 @@ export function createApp(cfg: ServerConfig): {
     // Directories are sent alongside files so the file tree can render folders that
     // hold no .md yet (e.g. a just-created empty folder).
     const dirs = [...buildDirIndex(cfg.root, deny)].sort();
-    // Image + HTML + PDF files travel separate channels from `files`: they're
+    // Drawings, images, HTML, and PDF files travel separate channels from `files`: they're
     // openable (tree, tabs, jump) but not commentable, so they must NOT join the
     // path set that drives comment/anchor/wikilink resolution.
     const images = [...state.imageIndex].sort();
     const htmls = [...state.htmlIndex].sort();
     const pdfs = [...state.pdfIndex].sort();
+    const drawings = [...state.drawingIndex].sort();
     return c.json({
       root: cfg.root,
       user: cfg.user,
@@ -181,6 +188,7 @@ export function createApp(cfg: ServerConfig): {
       images,
       htmls,
       pdfs,
+      drawings,
     });
   });
 
@@ -325,6 +333,28 @@ export function createApp(cfg: ServerConfig): {
     const pdfPath = resolvePdfFile(cfg.root, rel);
     return c.body(toBytes(readFileSync(pdfPath)), 200, {
       "content-type": "application/pdf",
+    });
+  });
+
+  // Return an indexed Excalidraw scene as text. Parsing stays client-side so a
+  // malformed scene produces a file-level render error rather than a server crash.
+  app.get("/api/drawing", (c) => {
+    rescan();
+    const file = requireQuery(c, "file");
+    const rel = resolveIndexedDrawing(state.drawingIndex, file);
+    if (rel === null) throw new HttpError(404, `drawing not in index: ${file}`);
+    const drawingPath = resolveDrawingFile(cfg.root, rel);
+    let content: string;
+    try {
+      content = readFileSync(drawingPath, "utf8");
+    } catch {
+      throw new HttpError(404, `drawing not found on disk: ${file}`);
+    }
+    return c.json({
+      content,
+      filename: baseName(drawingPath),
+      path: file,
+      version: fileVersion(content),
     });
   });
 
@@ -1037,7 +1067,7 @@ export function createApp(cfg: ServerConfig): {
   app.get("/api/events", (c) => {
     // ?file=a&file=b — the set of files this connection cares about. Unknown
     // files are skipped (a stale persisted tab can't 404 the whole stream).
-    // Any openable file counts: markdown, HTML, PDF, and image views all want
+    // Any openable file counts: markdown, drawing, HTML, PDF, and image views all want
     // live-reload, so admit a file in ANY openable index — not just
     // `state.index` (markdown), which would silently drop non-md changes.
     const requested = c.req.queries("file") ?? [];
@@ -1045,6 +1075,7 @@ export function createApp(cfg: ServerConfig): {
     for (const f of requested) {
       if (
         state.index.has(f) ||
+        state.drawingIndex.has(f) ||
         state.htmlIndex.has(f) ||
         state.imageIndex.has(f) ||
         state.pdfIndex.has(f)
@@ -1087,9 +1118,10 @@ export function createApp(cfg: ServerConfig): {
   app.post("/api/open", async (c) => {
     const b = await c.req.json<{ file: string }>();
     const rel = String(b.file ?? "");
-    // Docs, image files, HTML files, and PDF files are all openable in the frontend.
+    // Docs, drawings, image files, HTML files, and PDF files are all openable.
     if (
       !state.index.has(rel) &&
+      !state.drawingIndex.has(rel) &&
       !state.imageIndex.has(rel) &&
       !state.htmlIndex.has(rel) &&
       !state.pdfIndex.has(rel)

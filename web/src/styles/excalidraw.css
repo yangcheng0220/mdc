@@ -1,0 +1,26 @@
+/* Standalone drawing view. The lazy-loaded Excalidraw canvas owns interaction
+   and fills the viewport-locked document area. */
+.drawing-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 16px 28px;
+}
+
+.drawing-canvas {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.drawing-error {
+  height: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}

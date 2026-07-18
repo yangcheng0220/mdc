@@ -78,6 +78,15 @@ describe("cli", () => {
     expect(help).toMatch(/directory to serve \.md files from \(default: current\s+directory\)/);
   });
 
+  it("documents Excalidraw files as openable", () => {
+    const program = buildProgram(() => {});
+    const open = program.commands.find((cmd) => cmd.name() === "open");
+
+    expect(open).toBeDefined();
+    expect(open!.helpInformation()).toContain("Excalidraw file");
+    expect(open!.helpInformation()).toContain("absolute path to an openable workspace file");
+  });
+
   it("comment then list-pending", async () => {
     const tid = await comment();
     const [code, out] = await run(["list-pending", md]);
