@@ -6,6 +6,7 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 
 ### Added
 - Open `.excalidraw` and `.excalidraw.json` files as interactive read-only drawings, with offline fonts, live reload, theme support, and workspace navigation.
+- Edit drawings with the full Excalidraw toolset and conflict-safe autosave, then switch back to a read-only canvas.
 
 ## [0.3.0] - 2026-07-18
 

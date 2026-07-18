@@ -300,6 +300,63 @@ describe("drawing files", () => {
     expect(await opened.json()).toMatchObject({ reason: "no browser tab listening" });
   });
 
+  it("writes drawings with a matching version and chains the returned version", async () => {
+    writeDoc("scene.excalidraw", SCENE);
+    const initial = (await (await req("/api/drawing?file=scene.excalidraw")).json()) as {
+      version: string;
+    };
+    const edited = JSON.stringify({
+      type: "excalidraw",
+      version: 2,
+      source: "test",
+      elements: [{ id: "rectangle" }],
+      appState: {},
+      files: {},
+    });
+
+    const response = await req("/api/drawing?file=scene.excalidraw", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: edited, baseVersion: initial.version }),
+    });
+
+    expect(response.status).toBe(200);
+    const saved = (await response.json()) as { version: string };
+    expect(readDoc("scene.excalidraw")).toBe(edited);
+    const reread = (await (await req("/api/drawing?file=scene.excalidraw")).json()) as {
+      version: string;
+    };
+    expect(saved.version).toBe(reread.version);
+  });
+
+  it("rejects a stale drawing write and preserves the external content", async () => {
+    writeDoc("scene.excalidraw", SCENE);
+    const initial = (await (await req("/api/drawing?file=scene.excalidraw")).json()) as {
+      version: string;
+    };
+    const external = SCENE.replace('"source":"test"', '"source":"external"');
+    writeDoc("scene.excalidraw", external);
+
+    const response = await req("/api/drawing?file=scene.excalidraw", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: SCENE + "\n", baseVersion: initial.version }),
+    });
+
+    expect(response.status).toBe(409);
+    expect(readDoc("scene.excalidraw")).toBe(external);
+  });
+
+  it("rejects drawing writes to markdown or unindexed paths", async () => {
+    const init = {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ content: SCENE, baseVersion: "stale" }),
+    };
+    expect((await req("/api/drawing?file=doc.md", init)).status).toBe(404);
+    expect((await req("/api/drawing?file=missing.excalidraw", init)).status).toBe(404);
+  });
+
   it("deletes a drawing through the generic file route", async () => {
     writeDoc("scene.excalidraw", SCENE);
     const deleted = await req("/api/file?file=scene.excalidraw", { method: "DELETE" });

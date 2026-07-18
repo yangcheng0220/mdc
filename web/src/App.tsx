@@ -16,6 +16,7 @@ import {
   deleteSidecar,
   deleteThreadInFile,
   fetchDoc,
+  fetchDrawing,
   fetchFolderSummary,
   fetchMovePreview,
   moveFile,
@@ -103,7 +104,7 @@ export function App() {
   // commentable.
   const pdfKey = (index?.pdfs ?? []).join("\n");
   const pdfs = useMemo(() => (pdfKey ? pdfKey.split("\n") : []), [pdfKey]);
-  // Drawings are lazy-rendered, view-only, and stay outside markdown-specific flows.
+  // Drawings are lazy-rendered and stay outside markdown-specific flows.
   const drawingKey = (index?.drawings ?? []).join("\n");
   const drawings = useMemo(() => (drawingKey ? drawingKey.split("\n") : []), [drawingKey]);
   const openablePaths = useMemo(
@@ -208,7 +209,9 @@ export function App() {
     setReplyPrompt(null);
   }, [activeFile]);
   const toggleEdit = useCallback((file: string) => {
-    setDocChanged(false); // a switch shows fresh content either way — no stale banner
+    // Markdown swaps surfaces and reloads on a switch. A drawing keeps one live
+    // canvas across modes, so a conflict banner remains until its Reload action.
+    if (!isDrawing(file)) setDocChanged(false);
     setSuggestionPreview(null);
     setEditingFiles((prev) => {
       const next = new Set(prev);
@@ -216,8 +219,8 @@ export function App() {
       else next.add(file);
       return next;
     });
-  }, []);
-  // Content the editor last wrote per file, so we can ignore the disk-change
+  }, [isDrawing]);
+  // Content an editor surface last wrote per file, so we can ignore the disk-change
   // event our own save echoes back (the watcher can't tell our write from an
   // external edit, and the event lands AFTER the save resolves — so a time-based
   // flag races it; matching the exact content is race-free).
@@ -237,18 +240,40 @@ export function App() {
     },
     [],
   );
+  const onDrawingWrite = useCallback(
+    (file: string, content: string) => onEditorDirty(file, false, content),
+    [onEditorDirty],
+  );
 
   const editorRef = useRef<EditorHandle | null>(null);
   const onDocChanged = useCallback(
     (file: string) => {
-      // Drawings are read-only, so every disk event is safe to apply immediately.
+      // View mode adopts drawing changes immediately. Edit mode first compares
+      // disk bytes with recent autosaves so our own watcher echo never banners.
       if (isDrawing(file)) {
-        if (file === activeFile) {
-          setDocChanged(false);
-          setDocReloadNonce((nonce) => nonce + 1);
+        const flagDrawingChange = () => {
+          if (file === activeFile) {
+            if (editingFiles.has(file)) setDocChanged(true);
+            else {
+              setDocChanged(false);
+              setDocReloadNonce((nonce) => nonce + 1);
+            }
+          } else {
+            tabs.markUnread(file);
+            tabs.markStale(file);
+          }
+        };
+        const recent = lastWritten.current.get(file);
+        if (recent) {
+          fetchDrawing(file)
+            .then((drawing) => {
+              if (!recent.includes(drawing.content)) flagDrawingChange();
+            })
+            .catch(() => {
+              /* read failed — leave it; a later event will retry */
+            });
         } else {
-          tabs.markUnread(file);
-          tabs.markStale(file);
+          flagDrawingChange();
         }
         return;
       }
@@ -1031,14 +1056,14 @@ export function App() {
         e.preventDefault();
         panels.toggle("sidebar");
       } else if (matchEvent(e, combo("toggle-edit"))) {
-        if (!activeFile || isNonMd(activeFile)) return; // non-md surfaces aren't editable
+        if (!activeFile || (isNonMd(activeFile) && !isDrawing(activeFile))) return;
         e.preventDefault();
         toggleEdit(activeFile);
       }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [panels, pane, tabs, activeFile, toggleEdit, isNonMd, settingsOpen]);
+  }, [panels, pane, tabs, activeFile, toggleEdit, isNonMd, isDrawing, settingsOpen]);
 
   // --- Dashboard ------------------------------------------------------------
   // The cross-doc review inbox now lives inside the settings modal (the Comments
@@ -1229,7 +1254,7 @@ export function App() {
   const layoutClass = [
     "layout",
     panels.navCollapsed ? "nav-collapsed" : "",
-    panels.sidebarCollapsed ? "sidebar-collapsed" : "",
+    panels.sidebarCollapsed || isDrawing(activeFile) ? "sidebar-collapsed" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -1272,18 +1297,19 @@ export function App() {
             onHandoff={onHandoff}
             onEndSession={() => setConfirmEnd(true)}
             navCollapsed={panels.navCollapsed}
-            sidebarCollapsed={panels.sidebarCollapsed}
+            // Drawings have no text anchors, so the comments surface stays unavailable.
+            sidebarCollapsed={isDrawing(activeFile) ? false : panels.sidebarCollapsed}
             onToggleNav={() => panels.toggle("nav")}
             onToggleSidebar={() => panels.toggle("sidebar")}
             editing={!!activeFile && editingFiles.has(activeFile)}
-            // Non-markdown surfaces are view-only here.
-            onToggleEdit={activeFile && !isNonMd(activeFile) ? () => toggleEdit(activeFile) : undefined}
+            // Drawings share the markdown mode toggle; other non-markdown surfaces stay view-only.
+            onToggleEdit={activeFile && (!isNonMd(activeFile) || isDrawing(activeFile)) ? () => toggleEdit(activeFile) : undefined}
             saveState={activeFile && editingFiles.has(activeFile) ? saveState : "idle"}
             isNonMd={isNonMd(activeFile)}
           />
           {docChanged && activeFile && (
             <DocBanner
-              text="This doc changed on disk."
+              text={isDrawing(activeFile) ? "This drawing changed on disk." : "This doc changed on disk."}
               actions={[{ label: "↻ Reload", onClick: reloadDoc }]}
             />
           )}
@@ -1313,7 +1339,15 @@ export function App() {
               <PdfView file={activeFile} reloadNonce={docReloadNonce} />
             ) : activeFile && isDrawing(activeFile) ? (
               <Suspense fallback={<div className="doc drawing-view" />}>
-                <ExcalidrawView file={activeFile} reloadNonce={docReloadNonce} />
+                <ExcalidrawView
+                  file={activeFile}
+                  editing={editingFiles.has(activeFile)}
+                  reloadNonce={docReloadNonce}
+                  externalChange={docChanged}
+                  onOwnWrite={onDrawingWrite}
+                  onSaveStateChange={setSaveState}
+                  onConflict={() => setDocChanged(true)}
+                />
               </Suspense>
             ) : activeFile && editingFiles.has(activeFile) ? (
               <Editor

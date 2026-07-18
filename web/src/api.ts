@@ -74,6 +74,24 @@ export function fetchDrawing(file: string): Promise<DocResponse> {
   return getJson<DocResponse>(`/api/drawing?file=${encodeURIComponent(file)}`);
 }
 
+/** Persist an Excalidraw scene without overwriting a newer disk version. */
+export async function saveDrawing(
+  file: string,
+  content: string,
+  baseVersion: string,
+): Promise<string> {
+  const r = await fetch(`/api/drawing?file=${encodeURIComponent(file)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content, baseVersion }),
+  });
+  if (!r.ok) {
+    const detail = await r.text().catch(() => "");
+    throw new ApiError(r.status, detail || r.statusText);
+  }
+  return ((await r.json()) as { version: string }).version;
+}
+
 /** Image URL with an optional cache-buster for standalone image surfaces. */
 export function imageFileViewUrl(path: string, nonce = 0): string {
   const params = new URLSearchParams({ path });
