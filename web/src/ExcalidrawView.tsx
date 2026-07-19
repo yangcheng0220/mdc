@@ -208,6 +208,13 @@ export function ExcalidrawView({
     if (conflictedRef.current) return;
     const content = serializeAsJSON(elements, appState, files, "local");
     if (content === lastSerializedRef.current) return;
+    // The first onChange after a scene load is Excalidraw's mount echo: the
+    // normalized scene, no user edit behind it. Adopt it as the diff baseline
+    // instead of saving, or merely entering edit mode rewrites the file.
+    if (lastSerializedRef.current === null) {
+      lastSerializedRef.current = content;
+      return;
+    }
     lastSerializedRef.current = content;
     pendingContentRef.current = content;
     setSaveState("saving");
