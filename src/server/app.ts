@@ -20,7 +20,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, extname, join, posix, relative, sep } from "node:path";
 import {
   VERSION,
   applySuggestion,
@@ -48,6 +48,7 @@ import {
   buildPdfIndex,
   denyFrom,
   findOrphanSidecars,
+  IMAGE_EXTS,
   isDrawingName,
   walkFiles,
 } from "./walk.js";
@@ -94,6 +95,7 @@ interface IndexState {
 
 const EMPTY_EXCALIDRAW_SCENE =
   '{"type":"excalidraw","version":2,"source":"mdc","elements":[],"appState":{},"files":{}}';
+const MAX_ASSET_BYTES = 25 * 1024 * 1024;
 
 function rawFrontmatter(content: string): string | null {
   if (!content.startsWith("---\n")) return null;
@@ -293,6 +295,61 @@ export function createApp(cfg: ServerConfig): {
     return c.body(toBytes(readFileSync(imgPath)), 200, {
       "content-type": contentTypeFor(imgPath),
     });
+  });
+
+  // Store an image beside an indexed markdown doc. The client suggests the
+  // filename; placement and collision-safe deduplication stay server-owned so
+  // concurrent uploads cannot overwrite an existing asset.
+  app.post("/api/asset", async (c) => {
+    const doc = requireQuery(c, "doc");
+    const name = requireQuery(c, "name");
+    resolveFile(cfg.root, state.index, doc);
+
+    if (name.includes("/") || name.includes("\\") || name === "." || name === "..") {
+      throw new HttpError(404, "path traversal blocked");
+    }
+    const extension = extname(name);
+    if (!IMAGE_EXTS.has(extension.toLowerCase())) {
+      throw new HttpError(400, "unsupported image extension");
+    }
+
+    const declaredSize = Number(c.req.header("content-length"));
+    if (Number.isFinite(declaredSize) && declaredSize > MAX_ASSET_BYTES) {
+      throw new HttpError(413, "image exceeds the 25 MB limit");
+    }
+    const bytes = new Uint8Array(await c.req.arrayBuffer());
+    if (bytes.byteLength > MAX_ASSET_BYTES) {
+      throw new HttpError(413, "image exceeds the 25 MB limit");
+    }
+
+    const docDir = posix.dirname(doc);
+    const assetsDir = docDir === "." ? "assets" : posix.join(docDir, "assets");
+    const assetsAbs = resolveWithinRoot(cfg.root, assetsDir);
+    try {
+      mkdirSync(assetsAbs, { recursive: true });
+    } catch {
+      throw new HttpError(500, `failed to create assets folder for: ${doc}`);
+    }
+
+    const stem = name.slice(0, -extension.length);
+    let finalName = name;
+    let targetAbs = "";
+    for (let suffix = 0; ; suffix++) {
+      finalName = suffix === 0 ? name : `${stem}-${suffix}${extension}`;
+      const targetRel = posix.join(assetsDir, finalName);
+      targetAbs = resolveWithinRoot(cfg.root, targetRel);
+      try {
+        writeFileSync(targetAbs, bytes, { flag: "wx" });
+        break;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "EEXIST") continue;
+        throw new HttpError(500, `failed to write asset for: ${doc}`);
+      }
+    }
+
+    rescan();
+    const path = relative(cfg.root, targetAbs).split(sep).join("/");
+    return c.json({ path, ref: posix.join("assets", finalName) });
   });
 
   // Serve an image by its OWN indexed path (the standalone image view). Unlike

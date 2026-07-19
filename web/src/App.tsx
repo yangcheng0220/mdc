@@ -6,7 +6,17 @@
  * dashboard. The document fills the centre column and the comment cards the right.
  */
 
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ClipboardEvent as ReactClipboardEvent,
+  type DragEvent as ReactDragEvent,
+} from "react";
 import {
   ApiError,
   createFile,
@@ -345,6 +355,36 @@ export function App() {
   // copying the review command. End session asks for confirmation first.
   const presence = usePresence();
   const toast = useToast();
+  const assetBlockedInView =
+    activeFile !== null && typeKnown && !isNonMd(activeFile) && !editingFiles.has(activeFile);
+  const onViewModePaste = useCallback(
+    (event: ReactClipboardEvent<HTMLDivElement>) => {
+      if (!assetBlockedInView || event.clipboardData.getData("text/plain")) return;
+      const hasImage = Array.from(event.clipboardData.items).some(
+        (item) => item.kind === "file" && item.type.startsWith("image/"),
+      );
+      if (!hasImage) return;
+      event.preventDefault();
+      toast.show({ title: "Switch to Edit to add images", meta: "" });
+    },
+    [assetBlockedInView, toast],
+  );
+  const onViewModeDragOver = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>) => {
+      if (!assetBlockedInView || !event.dataTransfer.types.includes("Files")) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "none";
+    },
+    [assetBlockedInView],
+  );
+  const onViewModeDrop = useCallback(
+    (event: ReactDragEvent<HTMLDivElement>) => {
+      if (!assetBlockedInView || event.dataTransfer.files.length === 0) return;
+      event.preventDefault();
+      toast.show({ title: "Switch to Edit to add images", meta: "" });
+    },
+    [assetBlockedInView, toast],
+  );
   const root = index?.root ?? "";
   const [confirmEnd, setConfirmEnd] = useState(false);
 
@@ -1289,7 +1329,12 @@ export function App() {
         />
       </aside>
 
-      <div className="doc-area">
+      <div
+        className="doc-area"
+        onPaste={onViewModePaste}
+        onDragOver={onViewModeDragOver}
+        onDrop={onViewModeDrop}
+      >
         <div className="doc-shell">
           <DocToolbar
             activeFile={activeFile}
@@ -1362,6 +1407,8 @@ export function App() {
                 onCommentAnchorYsChange={onCommentAnchorYsChange}
                 onEditorHostChange={setEditorHost}
                 onSuggestionPreviewDecision={onEditModeSuggestionDecision}
+                onAssetError={(message) => toast.show({ title: message, meta: "" })}
+                onAssetCreated={reloadIndex}
               />
             ) : (
               <Doc

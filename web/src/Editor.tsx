@@ -25,7 +25,7 @@ import {
   type MarkdownCommand,
 } from "./editor/commands.js";
 import { createEditorExtensions } from "./editor/extensions.js";
-import { ApiError, fetchDoc, saveDoc } from "./api.js";
+import { ApiError, fetchDoc, saveDoc, uploadAsset } from "./api.js";
 import { parseFrontmatter } from "./render/frontmatter.js";
 import type { CommentAnchorY, CommentLine } from "./commentLines.js";
 
@@ -208,6 +208,10 @@ export const Editor = forwardRef<EditorHandle, {
     suggestionId: string,
     resolution: SuggestionResolution,
   ) => void;
+  /** Reports asset insertion failures through the app-owned toast. */
+  onAssetError?: (message: string) => void;
+  /** Requests an immediate file-index refresh after an asset is created. */
+  onAssetCreated?: () => void;
 }>(function Editor({
   file,
   commentLines = [],
@@ -219,6 +223,8 @@ export const Editor = forwardRef<EditorHandle, {
   onCommentAnchorYsChange,
   onEditorHostChange,
   onSuggestionPreviewDecision,
+  onAssetError,
+  onAssetCreated,
 }, ref) {
   const [text, setText] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -274,6 +280,10 @@ export const Editor = forwardRef<EditorHandle, {
   markerClickCb.current = onCommentMarkerClick;
   const editorHostCb = useRef(onEditorHostChange);
   editorHostCb.current = onEditorHostChange;
+  const assetErrorCb = useRef(onAssetError);
+  assetErrorCb.current = onAssetError;
+  const assetCreatedCb = useRef(onAssetCreated);
+  assetCreatedCb.current = onAssetCreated;
   const anchorReportRaf = useRef<number | null>(null);
   const scheduleAnchorReportRef = useRef<() => void>(() => {});
   scheduleAnchorReportRef.current = () => {
@@ -292,7 +302,15 @@ export const Editor = forwardRef<EditorHandle, {
   // useState setter, so closing over it here is safe. ⌘/ opens the command
   // palette; the binding lives in the editor keymap so it only fires while
   // editing (and preventDefault keeps the browser out of it).
-  const baseExtensions = useMemo(() => createEditorExtensions(() => setPaletteOpen(true)), []);
+  const baseExtensions = useMemo(
+    () =>
+      createEditorExtensions(() => setPaletteOpen(true), {
+        upload: (name, blob) => uploadAsset(fileRef.current, name, blob),
+        onError: (message) => assetErrorCb.current?.(message),
+        onCreated: () => assetCreatedCb.current?.(),
+      }),
+    [],
+  );
   const commentHighlight = useMemo(
     () => commentHighlightExtension(commentLines, flashingCommentId),
     [commentLines, flashingCommentId],

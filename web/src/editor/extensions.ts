@@ -10,9 +10,10 @@ import { indentUnit } from "@codemirror/language";
 import { Prec } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { markdownHighlightExtension } from "./markdownHighlight.js";
+import { imagePasteExtension, type ImagePasteOptions } from "./imagePaste.js";
 import { transientSetextHeadingExtension } from "./transientSetextHeading.js";
 
-export function createEditorExtensions(openPalette: () => void) {
+export function createEditorExtensions(openPalette: () => void, imagePaste?: ImagePasteOptions) {
   return [
     EditorView.lineWrapping,
     // 4-space indent: markdown needs 4 spaces to nest ORDERED lists (2 nests
@@ -21,6 +22,7 @@ export function createEditorExtensions(openPalette: () => void) {
     indentUnit.of("    "),
     markdown({ extensions: transientSetextHeadingExtension }),
     markdownHighlightExtension,
+    ...(imagePaste ? [imagePasteExtension(imagePaste)] : []),
     // Prec.highest so ⌘/ opens the palette instead of CodeMirror's default
     // Mod-/ = toggleComment (which otherwise shadows it). The shadowing is
     // silent and independent of registration order — any custom binding that
