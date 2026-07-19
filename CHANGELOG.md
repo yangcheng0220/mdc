@@ -4,6 +4,8 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-19
+
 ### Added
 - Paste clipboard images or drag image files into an edited markdown doc to add them under a sibling `assets/` folder and insert their references.
 - Open `.excalidraw` and `.excalidraw.json` files as interactive read-only drawings, with offline fonts, live reload, theme support, and workspace navigation.
