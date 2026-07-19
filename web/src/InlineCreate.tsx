@@ -5,7 +5,8 @@
  */
 
 import { useEffect, useRef, useState } from "react";
-import { FileIcon, FolderIcon } from "./icons.js";
+import type { FileCreateKind } from "./createName.js";
+import { DrawingIcon, FileIcon, FolderIcon } from "./icons.js";
 
 export function InlineCreate({
   kind,
@@ -13,7 +14,7 @@ export function InlineCreate({
   onCommit,
   onCancel,
 }: {
-  kind: "file" | "folder";
+  kind: FileCreateKind | "folder";
   depth: number;
   /** The typed name (trimmed, non-empty). The parent resolves it to a full path. */
   onCommit: (name: string) => void;
@@ -45,13 +46,15 @@ export function InlineCreate({
       style={depth ? { paddingLeft: 8 + depth * 16 } : undefined}
     >
       <span className="nav-file-icon">
-        {kind === "folder" ? <FolderIcon /> : <FileIcon />}
+        {kind === "folder" ? <FolderIcon /> : kind === "drawing" ? <DrawingIcon /> : <FileIcon />}
       </span>
       <input
         ref={ref}
         className="inline-create-input"
         value={value}
-        placeholder={kind === "folder" ? "folder name" : "name.md"}
+        placeholder={
+          kind === "folder" ? "folder name" : kind === "drawing" ? "name.excalidraw" : "name.md"
+        }
         spellCheck={false}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
