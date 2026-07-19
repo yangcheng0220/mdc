@@ -358,6 +358,38 @@ export function createApp(cfg: ServerConfig): {
     });
   });
 
+  // Overwrite an indexed Excalidraw scene with the same optimistic-concurrency
+  // contract as markdown writes. A stale editor must reload rather than clobber
+  // a drawing that changed on disk.
+  app.put("/api/drawing", async (c) => {
+    rescan();
+    const file = requireQuery(c, "file");
+    const rel = resolveIndexedDrawing(state.drawingIndex, file);
+    if (rel === null) throw new HttpError(404, `drawing not in index: ${file}`);
+    const drawingPath = resolveDrawingFile(cfg.root, rel);
+    const body = await c.req.json<{ content?: string; baseVersion?: string }>();
+    if (typeof body.content !== "string") throw new HttpError(400, "content required");
+
+    if (body.baseVersion !== undefined) {
+      let current: string | null;
+      try {
+        current = readFileSync(drawingPath, "utf8");
+      } catch {
+        current = null;
+      }
+      if (current === null || fileVersion(current) !== body.baseVersion) {
+        throw new HttpError(409, `${file} changed underneath you — reload`);
+      }
+    }
+
+    try {
+      writeFileSync(drawingPath, body.content, "utf8");
+    } catch {
+      throw new HttpError(500, `failed to write: ${file}`);
+    }
+    return c.json({ ok: true, path: file, version: fileVersion(body.content) });
+  });
+
   app.on("HEAD", "/api/pdf-file", (c) => {
     rescan(); // keep the existence check consistent with GET
     const path = requireQuery(c, "path");
