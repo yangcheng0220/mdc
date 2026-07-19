@@ -96,7 +96,10 @@ export function imagePasteExtension(options: ImagePasteOptions) {
     },
     drop(event, view) {
       const transfer = event.dataTransfer;
-      if (!transfer) return false;
+      // Only claim drops that carry files. A files-less drop is CodeMirror's
+      // own drag-selected-text (or text dragged in from outside) — let the
+      // editor's default handling move/insert it.
+      if (!transfer || !transfer.types.includes("Files")) return false;
       event.preventDefault();
       const files = Array.from(transfer.files).filter(isImageFile);
       if (files.length === 0) {
