@@ -2,9 +2,9 @@
 
 This document wires a coding agent into mdc. Print it any time with `mdc setup`.
 
-mdc is a local markdown workspace for humans and coding agents: it serves a folder in the browser, and the file tree opens markdown (with Mermaid diagrams, syntax-highlighted code, task lists, …), images, PDFs, and `.html` files in a sandboxed frame. The HTML surface matters for agents: produce a mockup, report, or diagram anywhere in the workspace and the user views it inline — `mdc open` it; doc edits appear via a live-reload banner, nothing restarts.
+mdc is a local markdown workspace for humans and coding agents: it serves a folder in the browser, and the file tree opens markdown (with Mermaid diagrams, syntax-highlighted code, task lists, …), images, PDFs, Excalidraw drawings, and `.html` files in a sandboxed frame. The HTML and drawing surfaces matter for agents: produce a mockup, report, or diagram anywhere in the workspace and the user views it inline — `mdc open` it; doc edits appear via a live-reload banner, nothing restarts.
 
-Review is the heart of it: the human highlights text in a doc and leaves margin comments; the agent reads and answers them through the `mdc` CLI. When an answer calls for a doc change, it arrives as a suggestion the human accepts or rejects in the margin. Comments live in a `.comments.jsonl` sidecar next to each `.md` file — the doc itself is never touched by commenting, and the sidecar works with or without the server running. **Margin comments are markdown-only:** `.md` files carry the review threads; images, HTML, and PDFs are view-only — don't point the review loop at them.
+Review is the heart of it: the human highlights text in a doc and leaves margin comments; the agent reads and answers them through the `mdc` CLI. When an answer calls for a doc change, it arrives as a suggestion the human accepts or rejects in the margin. Comments live in a `.comments.jsonl` sidecar next to each `.md` file — the doc itself is never touched by commenting, and the sidecar works with or without the server running. **Margin comments are markdown-only:** `.md` files carry the review threads; images, HTML, PDFs, and drawings carry no threads — don't point the review loop at them.
 
 ## How to use this document
 
@@ -16,6 +16,7 @@ Review is the heart of it: the human highlights text in a doc and leaves margin 
      > - asks to review a doc together, or says they left comments on a file
      > - asks for a mini app (a small tool over workspace files), or changes to one
      > - asks for a mockup, report, or diagram to view in the workspace
+     > - asks to create or edit an Excalidraw drawing (`.excalidraw`)
 
    - **A full skill / instruction block** — copy or distill this doc into the harness instead of pointing at it. Self-contained (no `mdc setup` at use time), but frozen at this version: re-run `mdc setup` to refresh after upgrading.
 
@@ -95,6 +96,16 @@ A *suggestion* is a comment or reply carrying the exact replacement for one cont
 - `list-pending` and `get-thread` report `suggestion_state`: the actionable suggestion id plus which suggestions were applied or dismissed.
 
 The sidecar is the source of truth: `list-pending`, `get-thread`, `reply`, `comment` — suggestions included — all work with no server running. Only `watch` and `open` need one.
+
+## Drawings
+
+A `.excalidraw` file is an Excalidraw scene — plain JSON with an `elements` array. **The file is the interface**: create or edit a drawing by writing the file with your own file tools; no server, CLI command, or browser needed. A valid empty scene is:
+
+```json
+{"type":"excalidraw","version":2,"source":"mdc","elements":[],"appState":{},"files":{}}
+```
+
+`mdc open` puts a drawing in front of the user, and an open canvas live-reloads as you write. One courtesy: if the user is editing that drawing in the browser, your write raises their conflict banner and pauses their autosave — write when they're not mid-edit, or tell them it's coming. Drawings carry no comment threads; discuss a drawing in a markdown doc that links to it.
 
 ## Mini apps
 

@@ -4,7 +4,7 @@ A local markdown workspace for you and your coding agent — render your docs in
 
 ## What is mdc?
 
-Point mdc at a folder and it renders your whole workspace in the browser — markdown (with Mermaid diagrams, syntax-highlighted code, task lists, and more), images, PDFs, and `.html` files. From there:
+Point mdc at a folder and it renders your whole workspace in the browser — markdown (with Mermaid diagrams, syntax-highlighted code, task lists, and more), images, PDFs, Excalidraw drawings, and `.html` files. From there:
 
 **Work with your markdown:**
 
@@ -28,6 +28,10 @@ Point mdc at a folder and it renders your whole workspace in the browser — mar
 
   ![HTML rendered in mdc](docs/screenshots/html-render.png)
 
+- **Sketch on a real canvas.** `.excalidraw` files open as Excalidraw drawings — pan and zoom in view mode, or flip the same view⇄edit toggle your docs use and draw with the full Excalidraw editor, autosaved to the file. Create one from the file tree (**New drawing** in the right-click menu). And because a drawing is just scene JSON on disk, your agent can sketch an architecture diagram or revise yours by writing the file — you watch the canvas update live. Fonts ship with mdc, so drawings render fully offline.
+
+  ![Editing a drawing in mdc](docs/screenshots/drawing.png)
+
 - **Run mini apps.** A trusted HTML file runs as a small app that reads and writes your workspace markdown — a Kanban board, a task browser — through a permissioned bridge.
 
   ![A mini app running in mdc](docs/screenshots/mini-app.png)
@@ -47,7 +51,7 @@ npm install -g mdc-workspace
 mdc serve ./my-docs
 ```
 
-`serve` renders the folder's contents and opens it in your browser. Browse the file tree, read your docs, and view any images, PDFs, or HTML inline. The server keeps running in the background — that's all you need to look around.
+`serve` renders the folder's contents and opens it in your browser. Browse the file tree, read your docs, and view any images, PDFs, drawings, or HTML inline. The server keeps running in the background — that's all you need to look around.
 
 To review docs with an agent or run mini apps, set your agent up next.
 
