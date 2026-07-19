@@ -252,6 +252,64 @@ describe("image files", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Image asset uploads
+// ---------------------------------------------------------------------------
+
+describe("image asset uploads", () => {
+  const PNG_1x1 = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "base64",
+  );
+
+  async function upload(doc: string, name: string, body: BodyInit = PNG_1x1): Promise<Response> {
+    const query = new URLSearchParams({ doc, name });
+    return req(`/api/asset?${query.toString()}`, { method: "POST", body });
+  }
+
+  it("creates a sibling assets folder and returns doc-relative and root-relative paths", async () => {
+    writeDoc("guides/setup.md", "# Setup\n");
+    await req("/api/index");
+
+    const response = await upload("guides/setup.md", "x.png");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      path: "guides/assets/x.png",
+      ref: "assets/x.png",
+    });
+    expect(readFileSync(join(dir, "guides/assets/x.png"))).toEqual(PNG_1x1);
+
+    const index = (await (await req("/api/index")).json()) as { images: string[]; dirs: string[] };
+    expect(index.images).toContain("guides/assets/x.png");
+    expect(index.dirs).toContain("guides/assets");
+  });
+
+  it("dedupes a taken filename without overwriting existing bytes", async () => {
+    const first = await upload("doc.md", "same.PNG", new Uint8Array([1]));
+    const second = await upload("doc.md", "same.PNG", new Uint8Array([2]));
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(await first.json()).toMatchObject({ ref: "assets/same.PNG" });
+    expect(await second.json()).toMatchObject({ ref: "assets/same-1.PNG" });
+    expect([...readFileSync(join(dir, "assets/same.PNG"))]).toEqual([1]);
+    expect([...readFileSync(join(dir, "assets/same-1.PNG"))]).toEqual([2]);
+  });
+
+  it("rejects unsupported extensions, traversal names, and unindexed docs", async () => {
+    expect((await upload("doc.md", "notes.txt")).status).toBe(400);
+    expect((await upload("doc.md", "../outside.png")).status).toBe(404);
+    expect((await upload("missing.md", "x.png")).status).toBe(404);
+    expect(existsSync(join(dir, "outside.png"))).toBe(false);
+  });
+
+  it("rejects a body over 25 MB", async () => {
+    const response = await upload("doc.md", "large.png", new Uint8Array(25 * 1024 * 1024 + 1));
+    expect(response.status).toBe(413);
+    expect(existsSync(join(dir, "assets/large.png"))).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Excalidraw scenes (standalone, interactive, openable-but-not-commentable)
 // ---------------------------------------------------------------------------
 

@@ -5,6 +5,7 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 ## [Unreleased]
 
 ### Added
+- Paste clipboard images or drag image files into an edited markdown doc to add them under a sibling `assets/` folder and insert their references.
 - Open `.excalidraw` and `.excalidraw.json` files as interactive read-only drawings, with offline fonts, live reload, theme support, and workspace navigation.
 - Edit drawings with the full Excalidraw toolset and conflict-safe autosave, then switch back to a read-only canvas.
 - Create new drawings from the Files pane, with drawing-aware filename defaults and a ready-to-edit empty canvas.

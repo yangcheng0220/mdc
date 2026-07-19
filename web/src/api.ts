@@ -99,6 +99,24 @@ export function imageFileViewUrl(path: string, nonce = 0): string {
   return `/api/image-file?${params.toString()}`;
 }
 
+/** Store an image in the active document's sibling assets folder. */
+export async function uploadAsset(
+  doc: string,
+  name: string,
+  blob: Blob,
+): Promise<{ path: string; ref: string }> {
+  const params = new URLSearchParams({ doc, name });
+  const r = await fetch(`/api/asset?${params.toString()}`, {
+    method: "POST",
+    body: blob,
+  });
+  if (!r.ok) {
+    const detail = await r.text().catch(() => "");
+    throw new ApiError(r.status, detail || r.statusText);
+  }
+  return (await r.json()) as { path: string; ref: string };
+}
+
 /** Raw HTML text of an .html file (for the sandboxed iframe's srcdoc). */
 export async function fetchHtmlFile(path: string): Promise<string> {
   const r = await fetch(`/api/html-file?path=${encodeURIComponent(path)}`);
