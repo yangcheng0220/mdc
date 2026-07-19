@@ -290,8 +290,8 @@ export function postDelete(file: string, commentId: string, author: string): Pro
 
 // --- File tree mutation ---------------------------------------------------
 
-/** Create an empty doc at a root-relative path (must end in .md). */
-export async function createFile(path: string): Promise<void> {
+/** Create an empty markdown doc or drawing at a root-relative path. */
+export async function createFile(path: string): Promise<{ content: string }> {
   const r = await fetch("/api/file", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -301,6 +301,7 @@ export async function createFile(path: string): Promise<void> {
     const detail = await r.text().catch(() => "");
     throw new ApiError(r.status, detail || r.statusText);
   }
+  return (await r.json()) as { content: string };
 }
 
 /** Create a folder at a root-relative path. */

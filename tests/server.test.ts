@@ -965,7 +965,7 @@ describe("handoff", () => {
 // File / folder create + delete (the tree-mutating routes)
 // ---------------------------------------------------------------------------
 
-describe("POST /api/file (create doc)", () => {
+describe("POST /api/file (create file)", () => {
   it("creates an empty doc at root and indexes it", async () => {
     const r = await post("/api/file", { path: "new.md" });
     expect(r.status).toBe(200);
@@ -980,6 +980,26 @@ describe("POST /api/file (create doc)", () => {
     expect(r.status).toBe(200);
     expect(existsSync(join(dir, "a", "b", "c.md"))).toBe(true);
   });
+
+  it.each(["scene.excalidraw", "scene.excalidraw.json"])(
+    "creates %s as a valid empty drawing and indexes it",
+    async (path) => {
+      const r = await post("/api/file", { path });
+      expect(r.status).toBe(200);
+      expect(JSON.parse(readDoc(path))).toEqual({
+        type: "excalidraw",
+        version: 2,
+        source: "mdc",
+        elements: [],
+        appState: {},
+        files: {},
+      });
+      const response = (await r.json()) as { content: string };
+      expect(response.content).toBe(readDoc(path));
+      const idx = (await (await req("/api/index")).json()) as { drawings: string[] };
+      expect(idx.drawings).toContain(path);
+    },
+  );
 
   it("refuses to overwrite an existing file (409)", async () => {
     await post("/api/file", { path: "new.md" });

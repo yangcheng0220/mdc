@@ -1134,11 +1134,11 @@ export function App() {
   const onCreateFile = useCallback(
     async (path: string): Promise<boolean> => {
       try {
-        await createFile(path);
-        // The create writes an empty file; record it so the resulting
+        const created = await createFile(path);
+        // Record the initial bytes so the resulting
         // doc-changed watcher event is recognized as our own and doesn't raise
         // a reload banner (same echo-suppression the editor save uses).
-        lastWritten.current.set(path, [""]);
+        lastWritten.current.set(path, [created.content]);
         reloadIndex();
         tabs.openInNewTab(path); // a create is a NEW doc → its own tab, never in-place
         setEditingFiles((prev) => new Set(prev).add(path)); // fresh empty doc → edit mode

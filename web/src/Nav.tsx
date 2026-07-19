@@ -12,6 +12,7 @@
 
 import { useCallback, useState } from "react";
 import { ContextMenu, type MenuState } from "./ContextMenu.js";
+import { resolveCreateName } from "./createName.js";
 import { FilesPane, type CreateTarget } from "./FilesPane.js";
 import { GearIcon, PanelLeftIcon } from "./icons.js";
 import { OutlinePane } from "./OutlinePane.js";
@@ -127,7 +128,7 @@ export function Nav({
   // input is visible. Switching to the Files pane is the caller's job (the "+"
   // path does it; a contextual menu is already on the Files pane).
   const startCreate = useCallback(
-    (kind: "file" | "folder", parent: string) => {
+    (kind: CreateTarget["kind"], parent: string) => {
       expandDir(parent);
       setCreateTarget({ kind, parent });
     },
@@ -155,8 +156,8 @@ export function Nav({
       setCreateTarget(null);
       if (!target) return;
       const path = joinPath(target.parent, name);
-      if (target.kind === "file") {
-        await onCreateFile(path.endsWith(".md") ? path : `${path}.md`);
+      if (target.kind === "file" || target.kind === "drawing") {
+        await onCreateFile(resolveCreateName(target.kind, path));
       } else {
         const ok = await onCreateFolder(path);
         if (ok) expandDir(path); // show the new (empty) folder open
@@ -177,11 +178,13 @@ export function Nav({
           : t.kind === "folder"
             ? [
                 { label: "New file", onSelect: () => startCreate("file", t.path) },
+                { label: "New drawing", onSelect: () => startCreate("drawing", t.path) },
                 { label: "New folder", onSelect: () => startCreate("folder", t.path) },
                 { label: "Delete", danger: true, onSelect: () => onRequestDeleteFolder(t.path) },
               ]
             : [
                 { label: "New file", onSelect: () => startCreate("file", "") },
+                { label: "New drawing", onSelect: () => startCreate("drawing", "") },
                 { label: "New folder", onSelect: () => startCreate("folder", "") },
               ];
       setMenu({ x: e.clientX, y: e.clientY, items });

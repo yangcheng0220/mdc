@@ -11,6 +11,7 @@
  */
 
 import { useMemo, useState } from "react";
+import type { FileCreateKind } from "./createName.js";
 import { buildTree, type TreeNode, workspaceRootName } from "./fileTree.js";
 import { DrawingIcon, FileIcon, FolderIcon, HtmlIcon, ImageIcon, PdfIcon } from "./icons.js";
 import { InlineCreate } from "./InlineCreate.js";
@@ -19,7 +20,7 @@ import type { Tabs as TabsState } from "./useTabs.js";
 
 /** Where an inline create input is currently shown (parent "" = root). */
 export interface CreateTarget {
-  kind: "file" | "folder";
+  kind: FileCreateKind | "folder";
   parent: string;
 }
 
@@ -253,7 +254,7 @@ function TreeLevel({
           </a>
         );
       })}
-      {create?.kind === "file" && inlineInput}
+      {create && create.kind !== "folder" && inlineInput}
       {dirs.map((dir) => {
         const isOpen = expanded.has(dir.path);
         return (

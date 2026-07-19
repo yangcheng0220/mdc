@@ -48,6 +48,7 @@ import {
   buildPdfIndex,
   denyFrom,
   findOrphanSidecars,
+  isDrawingName,
   walkFiles,
 } from "./walk.js";
 import { HandoffRegistry } from "./handoff-state.js";
@@ -90,6 +91,9 @@ interface IndexState {
   htmlIndex: Set<string>;
   pdfIndex: Set<string>;
 }
+
+const EMPTY_EXCALIDRAW_SCENE =
+  '{"type":"excalidraw","version":2,"source":"mdc","elements":[],"appState":{},"files":{}}';
 
 function rawFrontmatter(content: string): string | null {
   if (!content.startsWith("---\n")) return null;
@@ -939,21 +943,25 @@ export function createApp(cfg: ServerConfig): {
   // folder isn't an entry), so they confine the path to root directly and
   // rescan() afterward so the file tree reflects the change.
 
-  // Create an empty doc. mkdir -p the parent; refuse if it already exists.
+  // Create an empty markdown doc or drawing. mkdir -p the parent; refuse if it already exists.
   app.post("/api/file", async (c) => {
     const b = await c.req.json<{ path?: string }>();
     if (typeof b.path !== "string" || !b.path.trim()) throw new HttpError(400, "path required");
-    if (!b.path.endsWith(".md")) throw new HttpError(400, "file must end in .md");
+    const drawing = isDrawingName(b.path);
+    if (!b.path.endsWith(".md") && !drawing) {
+      throw new HttpError(400, "file must end in .md, .excalidraw, or .excalidraw.json");
+    }
     const abs = resolveWithinRoot(cfg.root, b.path);
     if (existsSync(abs)) throw new HttpError(409, `already exists: ${b.path}`);
+    const content = drawing ? EMPTY_EXCALIDRAW_SCENE : "";
     try {
       mkdirSync(dirname(abs), { recursive: true });
-      writeFileSync(abs, "", "utf8");
+      writeFileSync(abs, content, "utf8");
     } catch {
       throw new HttpError(500, `failed to create: ${b.path}`);
     }
     rescan();
-    return c.json({ ok: true, path: b.path });
+    return c.json({ ok: true, path: b.path, content });
   });
 
   // Create a folder. mkdir -p; refuse if it already exists.
