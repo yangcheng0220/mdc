@@ -22,6 +22,8 @@ Point mdc at a folder and it renders your whole workspace in the browser — mar
 
 - **Edit in place.** Toggle any doc between rendered view and a raw-markdown editor with a syntax palette (`⌘/`). mdc is a place to work, not just a window.
 
+- **Paste images straight in.** Screenshot, ⌘V — the image lands in an `assets/` folder beside the doc and its reference lands at your cursor, rendered the moment you switch back to view. Dragging image files in from your file manager works the same way.
+
 **And go beyond it:**
 
 - **View what your agent builds.** Ask your agent for a mockup, report, or diagram and it renders inline in mdc — an `.html` file opens in a sandboxed frame, so you review it in place instead of switching to another tab.
