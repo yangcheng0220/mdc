@@ -4,6 +4,9 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 
 ## [Unreleased]
 
+### Changed
+- The page title now matches the installed app's name ("mdc — workspace"), so the standalone window's title bar shows it once instead of "mdc — workspace - mdc".
+
 ## [0.6.0] - 2026-07-20
 
 ### Added

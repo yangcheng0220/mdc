@@ -388,6 +388,13 @@ export function App() {
   const root = index?.root ?? "";
   const [confirmEnd, setConfirmEnd] = useState(false);
 
+  // Match the installed app's name ("mdc — <workspace>") exactly: Chrome's
+  // standalone window drops the app-name prefix when the page title already
+  // starts with it, so the title bar reads "mdc — personal" once, not twice.
+  useEffect(() => {
+    if (root) document.title = `mdc — ${basename(root)}`;
+  }, [root]);
+
   // A natural-language prompt matching the agent's activation rule (see
   // docs/agent-setup.md) — mode-neutral: it doesn't presume comments exist, so
   // it covers both "answer my comments" and "review my draft". The agent arms
