@@ -4,6 +4,9 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 
 ## [Unreleased]
 
+### Fixed
+- The workspace name is now in the page the server sends, so a remote workspace no longer opens showing "mdc" and renaming itself once the file list loads.
+
 ## [0.6.1] - 2026-07-20
 
 ### Changed

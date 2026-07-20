@@ -148,11 +148,21 @@ export function createApp(cfg: ServerConfig): {
     return c.json({ detail: "internal error" }, 500);
   });
 
+  // The workspace's display name, shared by the page title and the web app
+  // manifest. Both must match exactly: Chrome's standalone window drops the
+  // app-name prefix only when the page title already starts with it.
+  const workspaceTitle = `mdc — ${basename(cfg.root)}`;
+
   // --- index page (serves the built frontend's index.html) -----------------
-  // The bundled app is self-contained: it reads the user from /api/index and
-  // Vite hashes asset filenames for cache-busting, so no token substitution.
+  // The bundled app is otherwise self-contained (it reads the user from
+  // /api/index, and Vite hashes asset filenames for cache-busting). The one
+  // substitution: the workspace title, injected here so the first painted
+  // frame already carries the installed app's name. Leaving it to the frontend
+  // means a stale "mdc" title until /api/index answers — visible as a flicker
+  // on a remote workspace, where that round-trip is slow.
   app.get("/", (c) => {
-    return c.html(readFileSync(join(cfg.staticDir, "index.html"), "utf8"));
+    const html = readFileSync(join(cfg.staticDir, "index.html"), "utf8");
+    return c.html(html.replace("<title>mdc</title>", `<title>${escapeHtml(workspaceTitle)}</title>`));
   });
 
   // --- root-level statics (Vite copies web/public/* to the static root) -----
@@ -183,11 +193,10 @@ export function createApp(cfg: ServerConfig): {
   // ("mdc — personal"), distinguishable in the Dock when several are installed.
   // Colors mirror web/index.html's theme-color metas.
   app.get("/manifest.webmanifest", (c) => {
-    const workspace = basename(cfg.root);
     return c.body(
       JSON.stringify({
-        name: `mdc — ${workspace}`,
-        short_name: workspace,
+        name: workspaceTitle,
+        short_name: basename(cfg.root),
         description: "Local markdown workspace where humans and coding agents review docs together",
         start_url: "/",
         display: "standalone",
@@ -1386,6 +1395,15 @@ function commentIds(entries: Entry[]): Set<string> {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((res) => setTimeout(res, ms));
+}
+
+/** Escape text for interpolation into HTML — folder names can contain `<`/`&`. */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 /** A plain-ArrayBuffer Uint8Array copy of a Buffer, for Hono's c.body(). */

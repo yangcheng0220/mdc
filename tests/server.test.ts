@@ -55,7 +55,8 @@ beforeEach(() => {
   // shaped like a Vite build (index.html referencing hashed assets, no tokens).
   writeFileSync(
     join(staticDir, "index.html"),
-    `<!doctype html><script type="module" src="/assets/index-abc123.js"></script>` +
+    `<!doctype html><title>mdc</title>` +
+      `<script type="module" src="/assets/index-abc123.js"></script>` +
       `<link rel="stylesheet" href="/assets/index-def456.css">`,
   );
   mkdirSync(join(staticDir, "assets"), { recursive: true });
@@ -104,6 +105,15 @@ describe("index page + assets", () => {
   it("404s an unknown asset and blocks traversal", async () => {
     expect((await req("/assets/nope.js")).status).toBe(404);
     expect((await req("/assets/../secret")).status).toBe(404);
+  });
+
+  it("GET / injects the workspace title, matching the manifest name exactly", async () => {
+    const html = await (await req("/")).text();
+    expect(html).toContain(`<title>mdc — ${basename(dir)}</title>`);
+    expect(html).not.toContain("<title>mdc</title>");
+    // The dedup Chrome applies depends on these being identical.
+    const manifest = (await (await req("/manifest.webmanifest")).json()) as { name: string };
+    expect(html).toContain(`<title>${manifest.name}</title>`);
   });
 
   it("GET /manifest.webmanifest is generated and named after the served root", async () => {

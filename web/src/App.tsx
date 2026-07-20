@@ -388,11 +388,12 @@ export function App() {
   const root = index?.root ?? "";
   const [confirmEnd, setConfirmEnd] = useState(false);
 
-  // Match the installed app's name ("mdc — <workspace>") exactly: Chrome's
-  // standalone window drops the app-name prefix when the page title already
-  // starts with it, so the title bar reads "mdc — personal" once, not twice.
+  // The server already injects this title into index.html, so normally this is
+  // a no-op that just keeps the two in sync. It still earns its place for the
+  // Vite dev server, which serves index.html without passing through Hono.
   useEffect(() => {
-    if (root) document.title = `mdc — ${basename(root)}`;
+    const title = root ? `mdc — ${basename(root)}` : "";
+    if (title && document.title !== title) document.title = title;
   }, [root]);
 
   // A natural-language prompt matching the agent's activation rule (see
