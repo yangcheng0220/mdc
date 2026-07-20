@@ -4,6 +4,10 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 
 ## [Unreleased]
 
+### Added
+- Opt in to launching a workspace in a chromeless Chrome app window with `mdc serve --app-window` or `app_window = true` in `.mdc.toml` (macOS with Chrome installed; falls back to a browser tab).
+- Each workspace now installs as its own named app ("mdc — folder-name"): the web app manifest is generated per workspace, so multiple installed workspaces are distinguishable in the Dock.
+
 ## [0.5.0] - 2026-07-20
 
 ### Added

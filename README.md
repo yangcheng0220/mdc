@@ -96,6 +96,14 @@ Then open the copied `.html` in mdc and trust it to run.
 
 **Trust model.** Apps are sandboxed: an untrusted HTML file renders read-only with no file access. When you explicitly trust an app, it runs with `allow-scripts` only (no same-origin access) and can read and write files through the mediated bridge — within a declared scope, and with a confirmation at the moment it writes outside its own folder. Trust is recorded per-workspace in `.mdc.toml` under an `[apps]` table that mdc writes for you (editing an app's file re-prompts for trust); you don't edit it by hand.
 
+## Run it as an app
+
+mdc doesn't have to live in a browser tab. Two ways to give it its own window:
+
+**Install it** (recommended). Open the workspace in Chrome and click the install icon at the right end of the URL bar (Safari: File → Add to Dock). mdc becomes an app of its own — a clean window without tabs or URL bar, a Dock icon, a Spotlight entry — named after the workspace ("mdc — my-docs"), so each workspace you serve installs as its own app. It's still your browser underneath: nothing extra to download, and `mdc open` reaches the app window just like a tab.
+
+**Or launch an app window per session.** With `app_window = true` in the workspace's `.mdc.toml` (or `mdc serve --app-window`), `serve` opens a chromeless Chrome app window instead of a tab — no install step, but no Dock identity of its own either. macOS with Chrome installed; anything else falls back to a normal tab.
+
 ## CLI
 
 The commands you'll use directly:

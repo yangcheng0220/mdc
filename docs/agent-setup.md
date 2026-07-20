@@ -28,9 +28,9 @@ Review is the heart of it: the human highlights text in a doc and leaves margin 
 
 ## The basics
 
-- `mdc serve [root]` — serve a folder (defaults to the current directory) and open the browser. If a server already covers the root it just opens the browser; to move a running server to a different root, add `--force`.
+- `mdc serve [root]` — serve a folder (defaults to the current directory) and open the browser. If a server already covers the root it just opens the browser; to move a running server to a different root, add `--force`. With `--app-window` (or `app_window = true` in `<root>/.mdc.toml`) the launch is a chromeless Chrome app window instead of a tab — honor it when the user asks for "the app window"; it needs macOS + Chrome and falls back to a normal tab otherwise.
 - `mdc check` — is a server running?
-- `mdc open <file>` — focus a file in the user's browser tab. Use this to put a doc in front of the user instead of pasting a path or URL. It does not start a server.
+- `mdc open <file>` — focus a file in the user's browser tab. Use this to put a doc in front of the user instead of pasting a path or URL. It does not start a server. The user may be viewing mdc as an installed app or app window rather than a browser tab — all are ordinary connected clients, so `open` and the whole review loop behave identically; don't go looking for a tab.
 - Every file argument is an **absolute path**.
 - **Ports:** the server defaults to port 8000. Serving elsewhere (`mdc serve <root> --port 8099`) means every server-backed command — `open`, `watch`, `check` — needs the matching `--base-url http://localhost:8099`. The sidecar commands (`list-pending`, `reply`, …) take no server and no port.
 - **Identity:** the human's name comes from `user` in `~/.mdc.toml`; set it with `mdc identity <name>`. Entries written by the agent pass `--author <name>` (default `agent`). Never write as the human.

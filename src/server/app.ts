@@ -20,7 +20,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, extname, join, posix, relative, sep } from "node:path";
+import { basename, dirname, extname, join, posix, relative, sep } from "node:path";
 import {
   VERSION,
   applySuggestion,
@@ -156,11 +156,10 @@ export function createApp(cfg: ServerConfig): {
   });
 
   // --- root-level statics (Vite copies web/public/* to the static root) -----
-  // Favicon plus the web-app manifest and its icons, which let the browser
-  // install mdc as a standalone app.
+  // Favicon plus the icons the web app manifest points at, which let the
+  // browser install mdc as a standalone app.
   const rootStatics: Record<string, string> = {
     "/favicon.svg": "image/svg+xml",
-    "/manifest.webmanifest": "application/manifest+json",
     "/icon-192.png": "image/png",
     "/icon-512.png": "image/png",
     "/apple-touch-icon.png": "image/png",
@@ -178,6 +177,35 @@ export function createApp(cfg: ServerConfig): {
       }
     });
   }
+
+  // --- web app manifest (generated, not static) ------------------------------
+  // Named after the served root so each workspace installs as its own app
+  // ("mdc — personal"), distinguishable in the Dock when several are installed.
+  // Colors mirror web/index.html's theme-color metas.
+  app.get("/manifest.webmanifest", (c) => {
+    const workspace = basename(cfg.root);
+    return c.body(
+      JSON.stringify({
+        name: `mdc — ${workspace}`,
+        short_name: workspace,
+        description: "Local markdown workspace where humans and coding agents review docs together",
+        start_url: "/",
+        display: "standalone",
+        background_color: "#f7f4ef",
+        theme_color: "#f7f4ef",
+        icons: [
+          { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
+          { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+          { src: "/favicon.svg", sizes: "any", type: "image/svg+xml" },
+        ],
+      }),
+      200,
+      {
+        "content-type": "application/manifest+json",
+        "cache-control": "public, max-age=86400",
+      },
+    );
+  });
 
   // --- file index for the file tree -------------------------------------------
   app.get("/api/index", (c) => {

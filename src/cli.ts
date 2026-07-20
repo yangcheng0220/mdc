@@ -26,6 +26,7 @@ import { Command, CommanderError } from "commander";
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 import { waitForSignal } from "./handoff.js";
 import { currentUser, currentUserWithSource, homeConfigPath, type IdentityEnv } from "./identity.js";
+import { openWorkspaceWindow, readAppWindowConfig } from "./launch.js";
 import { serverAlive, serverIndex, pendingFor, probeServer, serverTabConnected } from "./server-client.js";
 import {
   ValidationError,
@@ -390,21 +391,6 @@ async function cmdCheck(baseUrl: string): Promise<number> {
   return alive ? 0 : 1;
 }
 
-/** Spawn the OS's default URL opener (browser) for `url`. */
-async function openInBrowser(url: string): Promise<void> {
-  const opener =
-    process.platform === "darwin"
-      ? ["open", url]
-      : process.platform === "win32"
-        ? ["cmd", "/c", "start", "", url]
-        : ["xdg-open", url];
-  await new Promise<void>((res, rej) => {
-    const p = spawn(opener[0]!, opener.slice(1), { stdio: "ignore" });
-    p.on("error", rej);
-    p.on("exit", (code) => (code === 0 ? res() : rej(new Error(`exit ${code}`))));
-  });
-}
-
 /**
  * Resolve an absolute .md path to the path the server knows it by — relative to
  * the served root. Returns null with a reason printed to stderr when
@@ -414,7 +400,7 @@ async function openInBrowser(url: string): Promise<void> {
 async function relForServer(
   file: string,
   baseUrl: string,
-): Promise<{ rel: string } | { error: "down" | "unreachable" }> {
+): Promise<{ rel: string; root: string } | { error: "down" | "unreachable" }> {
   const index = await serverIndex(baseUrl);
   if (index === null) {
     console.error("down");
@@ -427,7 +413,7 @@ async function relForServer(
     console.error(`unreachable: ${target} is outside the served root ${root}`);
     return { error: "unreachable" };
   }
-  return { rel };
+  return { rel, root };
 }
 
 /**
@@ -535,10 +521,10 @@ async function cmdOpen(file: string, baseUrl: string): Promise<number> {
     // network hiccup — fall through to the browser-spawn fallback
   }
 
-  // Fallback: open a browser tab pointed at the file.
+  // Fallback: open a browser tab (or the workspace's app window) at the file.
   const url = `${baseUrl}/?file=${encodeURIComponent(resolved.rel)}`;
   try {
-    await openInBrowser(url);
+    await openWorkspaceWindow(url, readAppWindowConfig(resolved.root));
   } catch (e) {
     console.error(`error: could not open browser: ${String(e)}`);
     return 1;
@@ -639,10 +625,12 @@ async function cmdServe(
     force: boolean;
     restart: boolean;
     foreground: boolean;
+    appWindow: boolean;
   },
 ): Promise<number> {
   const baseUrl = `http://localhost:${opts.port}`;
   const wantRoot = resolvePath(root);
+  const appWindow = opts.appWindow || readAppWindowConfig(wantRoot);
   // True when we --force-stopped a server to take its port. The old server's
   // browser tab is still open and reconnects to the new server on its own, so
   // we must NOT open a second browser tab in that case.
@@ -677,7 +665,7 @@ async function cmdServe(
       // pile up duplicates (it would already show this server).
       console.log(`already running: ${probe.root} on ${baseUrl}`);
       if (opts.open && !(await serverTabConnected(baseUrl))) {
-        await openInBrowser(baseUrl).catch(() => {});
+        await openWorkspaceWindow(baseUrl, appWindow).catch(() => {});
       }
       return 0;
     } else if (!opts.force) {
@@ -712,7 +700,7 @@ async function cmdServe(
       staticDir: opts.staticDir,
     });
     // Skip on a --force switch: the prior server's tab reconnects to this one.
-    if (opts.open && !switched) await openInBrowser(baseUrl).catch(() => {});
+    if (opts.open && !switched) await openWorkspaceWindow(baseUrl, appWindow).catch(() => {});
     // Keep the process alive; the HTTP server + watcher hold it open, but make
     // intent explicit so commander's action promise doesn't resolve & exit.
     await new Promise<void>(() => {});
@@ -756,7 +744,7 @@ async function cmdServe(
     console.log('tip: comments are attributed as "user" — set your name: mdc identity <name>');
   }
   // Skip on a --force switch: the prior server's tab reconnects to this one.
-  if (opts.open && !switched) await openInBrowser(baseUrl).catch(() => {});
+  if (opts.open && !switched) await openWorkspaceWindow(baseUrl, appWindow).catch(() => {});
   return 0;
 }
 
@@ -1044,6 +1032,12 @@ ids come from list-pending's output. Run \`mdc <command> -h\` for detail.`,
     .option("--force", "if an mdc server is running on a different root, stop it and serve this root", false)
     .option("--restart", "stop any mdc server on the port (even same-root) and start fresh — picks up a rebuilt frontend/backend", false)
     .option("--foreground", "run the server in this process and block (default: background)", false)
+    .option(
+      "--app-window",
+      "open a chromeless Chrome app window instead of a browser tab (macOS with Chrome installed; " +
+        "falls back to the browser). Set durably with app_window = true in <root>/.mdc.toml",
+      false,
+    )
     .action(async function (
       this: Command,
       root: string | undefined,
@@ -1055,6 +1049,7 @@ ids come from list-pending's output. Run \`mdc <command> -h\` for detail.`,
         force: boolean;
         restart: boolean;
         foreground: boolean;
+        appWindow: boolean;
       },
     ) {
       setExit(await cmdServe(resolveServeRoot(root), opts));

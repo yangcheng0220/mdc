@@ -8,7 +8,7 @@
 import { serve } from "@hono/node-server";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { VERSION } from "../src/index.js";
 import { createApp } from "../src/server/app.js";
@@ -104,6 +104,26 @@ describe("index page + assets", () => {
   it("404s an unknown asset and blocks traversal", async () => {
     expect((await req("/assets/nope.js")).status).toBe(404);
     expect((await req("/assets/../secret")).status).toBe(404);
+  });
+
+  it("GET /manifest.webmanifest is generated and named after the served root", async () => {
+    const r = await req("/manifest.webmanifest");
+    expect(r.status).toBe(200);
+    expect(r.headers.get("content-type")).toContain("application/manifest+json");
+    const manifest = (await r.json()) as {
+      name: string;
+      short_name: string;
+      display: string;
+      icons: Array<{ src: string }>;
+    };
+    expect(manifest.name).toBe(`mdc — ${basename(dir)}`);
+    expect(manifest.short_name).toBe(basename(dir));
+    expect(manifest.display).toBe("standalone");
+    // Every icon the manifest points at must actually be servable.
+    for (const icon of manifest.icons) {
+      writeFileSync(join(staticDir, icon.src.slice(1)), "stub");
+      expect((await req(icon.src)).status).toBe(200);
+    }
   });
 });
 
