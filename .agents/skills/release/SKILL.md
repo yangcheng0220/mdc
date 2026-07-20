@@ -11,7 +11,7 @@ Tag a commit that's on `main` and green — CI (`ci.yml`) runs the sign-off on e
 
 ## Flow
 
-1. **Bump the version** in the repo-root `package.json` (e.g. `0.1.0` → `0.1.1`). Follow semver: patch for fixes, minor for backward-compatible features, major for breaking changes.
+1. **Bump the version** in the repo-root `package.json` (e.g. `0.1.0` → `0.1.1`). Follow semver: patch for fixes, minor for backward-compatible features, major for breaking changes. Then run `npm install --package-lock-only` so `package-lock.json` picks up the new version — the lockfile ships in the release commit; a stale one turns up as noise in the next branch.
 
 2. **Promote the changelog.** In `CHANGELOG.md`, move the entire current `## [Unreleased]` section into a new `## [x.y.z] - YYYY-MM-DD` heading (today's date), carrying every non-empty `Added` / `Changed` / `Fixed` subhead. Drop only the empty subheads. Then add a fresh empty `## [Unreleased]` scaffold above the new version heading.
 
