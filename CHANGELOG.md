@@ -4,6 +4,9 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 
 ## [Unreleased]
 
+### Added
+- Install mdc as a standalone app from the browser (Chrome's install icon, or Safari's File → Add to Dock) for a dedicated window and Dock icon without the URL bar.
+
 ## [0.4.0] - 2026-07-19
 
 ### Added

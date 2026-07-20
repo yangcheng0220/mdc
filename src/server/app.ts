@@ -155,18 +155,29 @@ export function createApp(cfg: ServerConfig): {
     return c.html(readFileSync(join(cfg.staticDir, "index.html"), "utf8"));
   });
 
-  // --- favicon (Vite copies web/public/favicon.svg to the static root) ------
-  app.get("/favicon.svg", (c) => {
-    try {
-      const body = readFileSync(join(cfg.staticDir, "favicon.svg"));
-      return c.body(toBytes(body), 200, {
-        "content-type": "image/svg+xml",
-        "cache-control": "public, max-age=86400",
-      });
-    } catch {
-      throw new HttpError(404, "favicon not found");
-    }
-  });
+  // --- root-level statics (Vite copies web/public/* to the static root) -----
+  // Favicon plus the web-app manifest and its icons, which let the browser
+  // install mdc as a standalone app.
+  const rootStatics: Record<string, string> = {
+    "/favicon.svg": "image/svg+xml",
+    "/manifest.webmanifest": "application/manifest+json",
+    "/icon-192.png": "image/png",
+    "/icon-512.png": "image/png",
+    "/apple-touch-icon.png": "image/png",
+  };
+  for (const [path, contentType] of Object.entries(rootStatics)) {
+    app.get(path, (c) => {
+      try {
+        const body = readFileSync(join(cfg.staticDir, path.slice(1)));
+        return c.body(toBytes(body), 200, {
+          "content-type": contentType,
+          "cache-control": "public, max-age=86400",
+        });
+      } catch {
+        throw new HttpError(404, "not found");
+      }
+    });
+  }
 
   // --- file index for the file tree -------------------------------------------
   app.get("/api/index", (c) => {
