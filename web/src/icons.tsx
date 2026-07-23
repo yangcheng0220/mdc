@@ -159,6 +159,37 @@ export function KebabIcon({ size = 14 }: { size?: number }) {
   );
 }
 
+/* Copy actions carry their own glyphs rather than the tree's file/folder icons:
+   these name an action ("copy this"), not a kind of thing. */
+
+export function CopyFilenameIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...stroke} strokeWidth={1.8}>
+      <rect x="9" y="9" width="12" height="12" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
+export function CopyPathIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...stroke} strokeWidth={1.8}>
+      <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.8 1.7" />
+      <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.8-1.7" />
+    </svg>
+  );
+}
+
+/** Ending an agent session — a stop sign, not a trash can: nothing is deleted. */
+export function EndSessionIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...stroke} strokeWidth={1.8}>
+      <circle cx="12" cy="12" r="9" />
+      <rect x="9" y="9" width="6" height="6" rx="1" />
+    </svg>
+  );
+}
+
 export function ArrowRightIcon({ size = 13 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" {...stroke} strokeWidth={2.2}>

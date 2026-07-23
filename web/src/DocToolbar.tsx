@@ -6,6 +6,7 @@
  */
 
 import { useSyncExternalStore } from "react";
+import { DocActionsMenu } from "./DocActionsMenu.js";
 import { HandoffControls } from "./HandoffControls.js";
 import { CodeIcon, EyeIcon, PanelLeftIcon } from "./icons.js";
 import type { ActiveSession } from "./api.js";
@@ -16,6 +17,8 @@ export function DocToolbar({
   session,
   onHandoff,
   onEndSession,
+  onCopyFilename,
+  onCopyPath,
   navCollapsed,
   sidebarCollapsed,
   onToggleNav,
@@ -29,6 +32,10 @@ export function DocToolbar({
   session: ActiveSession | null;
   onHandoff: () => void;
   onEndSession: () => void;
+  /** Copy the active file's basename with extension. */
+  onCopyFilename: () => void;
+  /** Copy the active file's absolute filesystem path. */
+  onCopyPath: () => void;
   navCollapsed: boolean;
   sidebarCollapsed: boolean;
   onToggleNav: () => void;
@@ -48,6 +55,9 @@ export function DocToolbar({
     () => isRunningApp(activeFile),
     () => false,
   );
+  // End session is offered only while an agent watches THIS file — an agent busy
+  // elsewhere leaves the menu copy-only.
+  const agentWatching = session !== null && session.file === activeFile && session.watching;
   return (
     <div className="doc-toolbar">
       {navCollapsed && (
@@ -109,15 +119,10 @@ export function DocToolbar({
       )}
 
       {activeFile && !isNonMd && (
-        <HandoffControls
-          activeFile={activeFile}
-          session={session}
-          onHandoff={onHandoff}
-          onEndSession={onEndSession}
-        />
+        <HandoffControls activeFile={activeFile} session={session} onHandoff={onHandoff} />
       )}
 
-      {sidebarCollapsed && (
+      {sidebarCollapsed && !isNonMd && (
         <button
           type="button"
           className="toolbar-comments is-open"
@@ -128,6 +133,15 @@ export function DocToolbar({
           <span className="dot" />
           Comments
         </button>
+      )}
+
+      {/* Always last: the ⋮ terminates the right cluster for every file type. */}
+      {activeFile && (
+        <DocActionsMenu
+          onCopyFilename={onCopyFilename}
+          onCopyPath={onCopyPath}
+          onEndSession={agentWatching ? onEndSession : undefined}
+        />
       )}
     </div>
   );

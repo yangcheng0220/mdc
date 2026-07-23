@@ -4,8 +4,12 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 
 ## [Unreleased]
 
+### Added
+- A ⋮ Document actions menu at the end of the doc toolbar, on every file type, with **Copy filename** and **Copy path** (the absolute path, the same form the handoff prompt uses).
+
 ### Changed
 - File-tree context menus now show familiar icons and separate creation actions from deletion.
+- **End session…** has moved into the new ⋮ menu, so the toolbar carries one overflow menu instead of a second kebab that appeared only while an agent was watching.
 
 ## [0.6.2] - 2026-07-20
 

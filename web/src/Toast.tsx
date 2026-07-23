@@ -11,7 +11,17 @@ export function Toast({ toast }: { toast: ToastData }) {
   return (
     <div className="toast">
       <span className="toast-cmd">{toast.title}</span>
-      <span className="toast-meta">{meta}</span>
+      {toast.truncateMetaFromStart ? (
+        // `direction: rtl` puts the ellipsis at the start; the <bdi> is required,
+        // not decorative — without it RTL reorders a leading "/" to the end
+        // ("/Users/…/TECH.md" renders as "Users/…/TECH.md/") whenever the value
+        // is short enough not to overflow.
+        <span className="toast-meta toast-meta-start-ellipsis">
+          <bdi>{meta}</bdi>
+        </span>
+      ) : (
+        <span className="toast-meta">{meta}</span>
+      )}
       {toast.hint && <span className="toast-hint">{toast.hint}</span>}
     </div>
   );
