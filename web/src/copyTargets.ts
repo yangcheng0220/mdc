@@ -28,3 +28,36 @@ export function absolutePath(root: string, relative: string): string {
 export function filename(path: string): string {
   return path.split("/").pop() ?? path;
 }
+
+/**
+ * The UTF-8 byte length of what actually reaches the clipboard — not
+ * `string.length`, which counts UTF-16 units and under-reports any non-ASCII
+ * text.
+ */
+export function byteSize(content: string): number {
+  return new TextEncoder().encode(content).byteLength;
+}
+
+/**
+ * Human-readable payload size in decimal units (1 KB = 1,000 bytes), for the
+ * copy toast's meta line.
+ *
+ * Whole bytes below 1 KB; one decimal above, with a trailing `.0` dropped so it
+ * reads `4 KB` rather than `4.0 KB`. Rounding is applied *before* the unit is
+ * chosen, so a value that would render as `1000 KB` promotes to `1 MB` instead.
+ */
+export function formatSize(bytes: number): string {
+  if (bytes < 1000) return `${bytes} B`;
+
+  const units = ["KB", "MB", "GB"];
+  let value = bytes / 1000;
+  let unit = 0;
+  // Rounding first is what makes the promotion correct: 999,950 bytes rounds to
+  // 1000.0 KB, which must become 1 MB, not a unit that never displays.
+  while (Math.round(value * 10) / 10 >= 1000 && unit < units.length - 1) {
+    value /= 1000;
+    unit++;
+  }
+  const rounded = Math.round(value * 10) / 10;
+  return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)} ${units[unit]}`;
+}
