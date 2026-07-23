@@ -46,7 +46,7 @@ import { CmdK } from "./CmdK.js";
 import { Comments, type SidebarView } from "./Comments.js";
 import { ConfirmDialog } from "./ConfirmDialog.js";
 import type { PendingComment } from "./commentData.js";
-import { absolutePath, filename } from "./copyTargets.js";
+import { absolutePath, byteSize, filename, formatSize, offersCopyContents } from "./copyTargets.js";
 import { actionableSuggestion, type Suggestion } from "../../src/threads.js";
 import { findTargetStrict } from "../../src/anchor.js";
 import { Doc, type SuggestionPreviewRequest } from "./Doc.js";
@@ -209,12 +209,26 @@ export function App() {
   const [suggestionPreview, setSuggestionPreview] = useState<SuggestionPreviewRequest | null>(null);
   const [replyPrompt, setReplyPrompt] = useState<ReplyPrompt | null>(null);
   const [editorRawContent, setEditorRawContent] = useState<string | null>(null);
+  // Whether the editor buffer is exactly what's on disk. Tracked separately from
+  // `saveState`, which is too coarse: it reads "saving" for a value newer typing
+  // has already replaced, and Copy contents needs per-value freshness.
+  //
+  // Mirrored into a ref because Copy contents must read the buffer as it is at
+  // click time. The editor publishes synchronously on every keystroke, so a
+  // click in the same tick as an edit would otherwise see the pre-edit state
+  // captured by the last render — copying stale text and calling it saved.
+  const editorCopyState = useRef<{ raw: string | null; saved: boolean }>({ raw: null, saved: true });
+  const onEditorRawContentChange = useCallback((raw: string, saved: boolean) => {
+    editorCopyState.current = { raw, saved };
+    setEditorRawContent(raw);
+  }, []);
   const [editorAnchorYs, setEditorAnchorYs] = useState<CommentAnchorY[]>([]);
   const [editorHost, setEditorHost] = useState<HTMLElement | null>(null);
   useEffect(() => {
     setOutlineContent(null);
     setViewRawContent(null);
     setEditorRawContent(null);
+    editorCopyState.current = { raw: null, saved: true };
     setEditorAnchorYs([]);
     setSuggestionPreview(null);
     setReplyPrompt(null);
@@ -407,27 +421,92 @@ export function App() {
     [root, activeFile],
   );
 
-  // Copy filename / Copy path from the toolbar ⋮. The toast echoes the copied
-  // value, truncated from the left so the filename stays visible — an absolute
-  // path routinely outruns the toast width. The clipboard gets the full value.
+  // Copy filename / path / contents from the toolbar ⋮. The toast echoes the
+  // copied value, truncated from the left so the filename stays visible — an
+  // absolute path routinely outruns the toast width. The clipboard gets the
+  // full value.
+  //
+  // Contents may need an async read, so each attempt takes a rising id and both
+  // the write and the toast re-check it: the last action the user invoked wins,
+  // even if an earlier read or clipboard promise resolves after it.
+  const copyAttempt = useRef(0);
+  const copyQueue = useRef<Promise<unknown>>(Promise.resolve());
   const copy = useCallback(
-    async (what: "filename" | "path", value: string) => {
-      const ok = await copyToClipboard(value);
-      toast.show(
-        ok
-          ? { title: `Copied ${what}`, meta: value, truncateMetaFromStart: true }
-          : { title: "Copy failed", meta: "Clipboard access is unavailable." },
-      );
+    (
+      title: string,
+      produce: () => string | Promise<string>,
+      meta?: (value: string) => string,
+      onReadError?: () => void,
+    ) => {
+      const attempt = ++copyAttempt.current;
+      copyQueue.current = copyQueue.current.then(async () => {
+        if (attempt !== copyAttempt.current) return;
+        let value: string;
+        try {
+          value = await produce();
+        } catch {
+          // A failed source read must never reach the clipboard, and never
+          // replace it with a partial value.
+          if (attempt === copyAttempt.current) onReadError?.();
+          return;
+        }
+        if (attempt !== copyAttempt.current) return;
+        const ok = await copyToClipboard(value);
+        if (attempt !== copyAttempt.current) return;
+        toast.show(
+          ok
+            ? {
+                title,
+                meta: meta ? meta(value) : value,
+                truncateMetaFromStart: true,
+              }
+            : { title: "Copy failed", meta: "Clipboard access is unavailable." },
+        );
+      });
     },
     [toast],
   );
 
   const onCopyFilename = useCallback(() => {
-    if (activeFile) void copy("filename", filename(activeFile));
+    if (activeFile) copy("Copied filename", () => filename(activeFile));
   }, [activeFile, copy]);
   const onCopyPath = useCallback(() => {
-    if (activeFile) void copy("path", absolutePath(root, activeFile));
+    if (activeFile) copy("Copied path", () => absolutePath(root, activeFile));
   }, [activeFile, root, copy]);
+
+  // Copy contents copies what is ON SCREEN, which is not always what is on disk:
+  // the edit buffer before autosave, the editable side of a conflict review, a
+  // pinned suggestion's proposed text, or — behind the doc-changed banner — the
+  // snapshot still displayed rather than the newer value nobody has seen.
+  const onCopyContents = useCallback(() => {
+    if (!activeFile) return;
+    const editing = editingFiles.has(activeFile);
+    // Read the buffer at click time, not as of the last render (see the ref).
+    const editorState = editorCopyState.current;
+    const displayed = editing ? editorState.raw : viewRawContent;
+    const name = filename(activeFile);
+    // Unsaved beats reload-pending: an edit buffer is the user's own unsaved
+    // work, whereas the banner is only about a change they haven't adopted.
+    const suffix = editing
+      ? editorState.saved
+        ? ""
+        : " · unsaved"
+      : docChanged
+        ? " · reload pending"
+        : "";
+    copy(
+      "Copied contents",
+      // A surface that hasn't published its source yet (or was never loaded)
+      // falls back to a disk read rather than copying nothing.
+      () => (displayed !== null ? displayed : fetchDoc(activeFile).then((d) => d.content)),
+      (value) => `${name} · ${formatSize(byteSize(value))}${suffix}`,
+      () =>
+        toast.show({
+          title: "Copy failed",
+          meta: `Couldn't read ${name}. It may have moved or been deleted.`,
+        }),
+    );
+  }, [activeFile, editingFiles, viewRawContent, docChanged, copy, toast]);
 
   const onHandoff = useCallback(async () => {
     const session = presence.active;
@@ -1374,6 +1453,19 @@ export function App() {
             onEndSession={() => setConfirmEnd(true)}
             onCopyFilename={onCopyFilename}
             onCopyPath={onCopyPath}
+            // Markdown only in this slice; drawings and HTML follow in #61,
+            // and images/PDFs never get it (no text to copy). Withheld until the
+            // index resolves the type: before that every file looks like
+            // markdown, so a deep-linked image would offer a copy that 404s.
+            onCopyContents={
+              offersCopyContents({
+                file: activeFile,
+                typeKnown,
+                isNonMd: isNonMd(activeFile),
+              })
+                ? onCopyContents
+                : undefined
+            }
             navCollapsed={panels.navCollapsed}
             // Drawings have no text anchors, so the comments surface stays unavailable.
             sidebarCollapsed={isDrawing(activeFile) ? false : panels.sidebarCollapsed}
@@ -1436,7 +1528,7 @@ export function App() {
                 onDirtyChange={onEditorDirty}
                 onSaveStateChange={setSaveState}
                 onContentChange={setOutlineContent}
-                onRawContentChange={setEditorRawContent}
+                onRawContentChange={onEditorRawContentChange}
                 onCommentAnchorYsChange={onCommentAnchorYsChange}
                 onEditorHostChange={setEditorHost}
                 onSuggestionPreviewDecision={onEditModeSuggestionDecision}

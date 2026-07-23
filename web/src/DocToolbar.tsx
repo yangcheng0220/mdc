@@ -19,6 +19,7 @@ export function DocToolbar({
   onEndSession,
   onCopyFilename,
   onCopyPath,
+  onCopyContents,
   navCollapsed,
   sidebarCollapsed,
   onToggleNav,
@@ -36,6 +37,8 @@ export function DocToolbar({
   onCopyFilename: () => void;
   /** Copy the active file's absolute filesystem path. */
   onCopyPath: () => void;
+  /** Copy the active file's raw text; omitted for files that have none. */
+  onCopyContents?: () => void;
   navCollapsed: boolean;
   sidebarCollapsed: boolean;
   onToggleNav: () => void;
@@ -140,6 +143,7 @@ export function DocToolbar({
         <DocActionsMenu
           onCopyFilename={onCopyFilename}
           onCopyPath={onCopyPath}
+          onCopyContents={onCopyContents}
           onEndSession={agentWatching ? onEndSession : undefined}
         />
       )}

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { absolutePath, filename } from "../web/src/copyTargets.js";
+import {
+  absolutePath,
+  byteSize,
+  filename,
+  formatSize,
+  offersCopyContents,
+} from "../web/src/copyTargets.js";
 
 describe("absolutePath", () => {
   it.each([
@@ -42,5 +48,81 @@ describe("filename", () => {
     ["a/b/c/deeply nested name.md", "deeply nested name.md"],
   ])("takes the last segment of %s", (path, expected) => {
     expect(filename(path)).toBe(expected);
+  });
+});
+
+describe("byteSize", () => {
+  it("counts ASCII as one byte per character", () => {
+    expect(byteSize("hello")).toBe(5);
+  });
+
+  it("counts the UTF-8 payload, not UTF-16 units", () => {
+    // "é" is 1 JS char but 2 UTF-8 bytes; the emoji is 2 JS chars but 4 bytes.
+    expect("é".length).toBe(1);
+    expect(byteSize("é")).toBe(2);
+    expect("🎉".length).toBe(2);
+    expect(byteSize("🎉")).toBe(4);
+    // 5 ASCII ("hllo" + space) + 2 for "é" + 4 for the emoji.
+    expect(byteSize("héllo 🎉")).toBe(11);
+  });
+
+  it("is zero for empty content", () => {
+    expect(byteSize("")).toBe(0);
+  });
+});
+
+describe("formatSize", () => {
+  it.each([
+    [0, "0 B"],
+    [1, "1 B"],
+    [999, "999 B"],
+    // Decimal units: 1 KB is 1,000 bytes, not 1,024.
+    [1000, "1 KB"],
+    [1500, "1.5 KB"],
+    [4200, "4.2 KB"],
+    // A trailing ".0" is dropped.
+    [4000, "4 KB"],
+    [999_000, "999 KB"],
+    // Rounding happens before the unit is picked, so this promotes rather than
+    // rendering "1000 KB".
+    [999_950, "1 MB"],
+    [1_000_000, "1 MB"],
+    [1_500_000, "1.5 MB"],
+    [4_240_000, "4.2 MB"],
+    [1_000_000_000, "1 GB"],
+  ])("formats %i bytes as %s", (bytes, expected) => {
+    expect(formatSize(bytes)).toBe(expected);
+  });
+
+  it("never displays a value at the unit ceiling", () => {
+    // Any byte count whose rounded value would read "1000 <unit>" must promote.
+    for (const n of [999_949, 999_950, 999_999, 999_949_999]) {
+      expect(formatSize(n)).not.toMatch(/^1000 /);
+    }
+  });
+});
+
+describe("offersCopyContents", () => {
+  it("offers contents for a markdown file once its type is known", () => {
+    expect(offersCopyContents({ file: "notes.md", typeKnown: true, isNonMd: false })).toBe(true);
+  });
+
+  it.each([
+    ["an image", "pic.png"],
+    ["a PDF", "paper.pdf"],
+    ["an HTML file", "page.html"],
+  ])("withholds contents for %s", (_label, file) => {
+    expect(offersCopyContents({ file, typeKnown: true, isNonMd: true })).toBe(false);
+  });
+
+  it("withholds contents until the index resolves the type", () => {
+    // Before the index lands every path looks like markdown, so a deep-linked
+    // image would otherwise be offered a copy that fails on read.
+    expect(offersCopyContents({ file: "page.html", typeKnown: false, isNonMd: false })).toBe(false);
+    expect(offersCopyContents({ file: "notes.md", typeKnown: false, isNonMd: false })).toBe(false);
+  });
+
+  it("withholds contents when no file is open", () => {
+    expect(offersCopyContents({ file: null, typeKnown: true, isNonMd: false })).toBe(false);
   });
 });
