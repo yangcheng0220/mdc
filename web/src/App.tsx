@@ -245,11 +245,20 @@ export function App() {
     setViewRawContent(null);
     setEditorRawContent(null);
     editorCopyState.current = { raw: null, saved: true };
-    surfaceCopyState.current = null;
     setEditorAnchorYs([]);
     setSuggestionPreview(null);
     setReplyPrompt(null);
   }, [activeFile]);
+  // A reload tears the surface down and re-fetches, so the snapshot it published
+  // describes a version nobody is looking at any more. Clearing on the reload
+  // signal as well as the file keeps Copy contents honest in the window before
+  // the new source renders — and when nothing renders at all, which is what a
+  // reloaded app file does: trust is per-hash, so an externally edited app comes
+  // back untrusted and stops at the trust prompt. Copy contents then falls back
+  // to an on-demand read instead of serving the pre-reload text.
+  useEffect(() => {
+    surfaceCopyState.current = null;
+  }, [activeFile, docReloadNonce]);
   const toggleEdit = useCallback((file: string) => {
     // Markdown swaps surfaces and reloads on a switch. A drawing keeps one live
     // canvas across modes, so a conflict banner remains until its Reload action.
