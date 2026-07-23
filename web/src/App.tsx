@@ -46,6 +46,7 @@ import { CmdK } from "./CmdK.js";
 import { Comments, type SidebarView } from "./Comments.js";
 import { ConfirmDialog } from "./ConfirmDialog.js";
 import type { PendingComment } from "./commentData.js";
+import { absolutePath, filename } from "./copyTargets.js";
 import { actionableSuggestion, type Suggestion } from "../../src/threads.js";
 import { findTargetStrict } from "../../src/anchor.js";
 import { Doc, type SuggestionPreviewRequest } from "./Doc.js";
@@ -402,9 +403,31 @@ export function App() {
   // watch, checks pending, and asks if ambiguous. Absolute path, matching the
   // Workspace section's convention (an agent's cwd may differ from the root).
   const reviewPrompt = useCallback(
-    () => `Review ${root}/${activeFile} in mdc`,
+    () => `Review ${absolutePath(root, activeFile ?? "")} in mdc`,
     [root, activeFile],
   );
+
+  // Copy filename / Copy path from the toolbar ⋮. The toast echoes the copied
+  // value, truncated from the left so the filename stays visible — an absolute
+  // path routinely outruns the toast width. The clipboard gets the full value.
+  const copy = useCallback(
+    async (what: "filename" | "path", value: string) => {
+      const ok = await copyToClipboard(value);
+      toast.show(
+        ok
+          ? { title: `Copied ${what}`, meta: value, truncateMetaFromStart: true }
+          : { title: "Copy failed", meta: "Clipboard access is unavailable." },
+      );
+    },
+    [toast],
+  );
+
+  const onCopyFilename = useCallback(() => {
+    if (activeFile) void copy("filename", filename(activeFile));
+  }, [activeFile, copy]);
+  const onCopyPath = useCallback(() => {
+    if (activeFile) void copy("path", absolutePath(root, activeFile));
+  }, [activeFile, root, copy]);
 
   const onHandoff = useCallback(async () => {
     const session = presence.active;
@@ -1349,6 +1372,8 @@ export function App() {
             session={presence.active}
             onHandoff={onHandoff}
             onEndSession={() => setConfirmEnd(true)}
+            onCopyFilename={onCopyFilename}
+            onCopyPath={onCopyPath}
             navCollapsed={panels.navCollapsed}
             // Drawings have no text anchors, so the comments surface stays unavailable.
             sidebarCollapsed={isDrawing(activeFile) ? false : panels.sidebarCollapsed}
