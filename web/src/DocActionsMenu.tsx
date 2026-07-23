@@ -10,7 +10,7 @@
 
 import type { ReactNode } from "react";
 import { DropdownMenu } from "./DropdownMenu.js";
-import { CopyFilenameIcon, CopyPathIcon, KebabIcon } from "./icons.js";
+import { CopyFilenameIcon, CopyPathIcon, EndSessionIcon, KebabIcon } from "./icons.js";
 
 /** One menu row: closes the menu, then acts. */
 function Item({
@@ -74,7 +74,7 @@ export function DocActionsMenu({
           {onEndSession && (
             <>
               <div className="doc-menu-separator" role="separator" />
-              <Item close={close} onSelect={onEndSession} danger>
+              <Item close={close} onSelect={onEndSession} icon={<EndSessionIcon />} danger>
                 End session…
               </Item>
             </>

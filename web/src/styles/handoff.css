@@ -179,6 +179,10 @@
   white-space: nowrap;
   text-overflow: ellipsis;
   direction: rtl;
+  /* `direction: rtl` also flips block alignment, which right-aligns a short
+     value that doesn't fill the line ("pic.png" drifting to the far edge).
+     Only the ellipsis end should change — pin the text back to the left. */
+  text-align: left;
 }
 .toast-hint {
   display: block;

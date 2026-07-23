@@ -180,6 +180,16 @@ export function CopyPathIcon({ size = 14 }: { size?: number }) {
   );
 }
 
+/** Ending an agent session — a stop sign, not a trash can: nothing is deleted. */
+export function EndSessionIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...stroke} strokeWidth={1.8}>
+      <circle cx="12" cy="12" r="9" />
+      <rect x="9" y="9" width="6" height="6" rx="1" />
+    </svg>
+  );
+}
+
 export function ArrowRightIcon({ size = 13 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" {...stroke} strokeWidth={2.2}>
