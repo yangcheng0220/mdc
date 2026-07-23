@@ -73,13 +73,23 @@ function withBridge(html: string): string {
   return tag + html;
 }
 
-export function AppView({ file, reloadNonce }: { file: string; reloadNonce: number }) {
+export function AppView({
+  file,
+  reloadNonce,
+  onRawContentLoaded,
+}: {
+  file: string;
+  reloadNonce: number;
+  onRawContentLoaded?: (file: string, raw: string) => void;
+}) {
   const [html, setHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [appName, setAppName] = useState<string | null>(null);
   // A pending cross-folder-write confirmation, or null when none is showing.
   const [confirmReq, setConfirmReq] = useState<ConfirmReq | null>(null);
   const frameRef = useRef<HTMLIFrameElement>(null);
+  const rawLoadedCb = useRef(onRawContentLoaded);
+  rawLoadedCb.current = onRawContentLoaded;
 
   // The app's display name for the write-grant card title (best-effort).
   useEffect(() => {
@@ -100,7 +110,11 @@ export function AppView({ file, reloadNonce }: { file: string; reloadNonce: numb
     setError(null);
     fetchHtmlFile(file)
       .then((text) => {
-        if (!cancelled) setHtml(withBridge(text));
+        if (cancelled) return;
+        setHtml(withBridge(text));
+        // The app's own source, before the bridge is injected: Copy contents
+        // yields the file as authored, not mdc's runtime wrapper.
+        rawLoadedCb.current?.(file, text);
       })
       .catch((e: unknown) => {
         if (cancelled) return;

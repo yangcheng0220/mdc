@@ -17,7 +17,17 @@ import { fetchAppInfo, trustApp, type AppInfo } from "./api.js";
 import { onTrustChange } from "./trust-state.js";
 import { beyondFolder, ownFolder } from "./app-scope.js";
 
-export function HtmlSurface({ file, reloadNonce }: { file: string; reloadNonce: number }) {
+export function HtmlSurface({
+  file,
+  reloadNonce,
+  onRawContentLoaded,
+}: {
+  file: string;
+  reloadNonce: number;
+  /** The source rendered into whichever surface won the routing above — the
+   * plain view and the trusted app publish the same exact file text. */
+  onRawContentLoaded?: (file: string, raw: string) => void;
+}) {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [failed, setFailed] = useState(false);
   const [declined, setDeclined] = useState(false);
@@ -50,16 +60,16 @@ export function HtmlSurface({ file, reloadNonce }: { file: string; reloadNonce: 
 
   // No manifest (or info failed) → plain view-only HTML.
   if (failed || (info && !isApp)) {
-    return <HtmlView file={file} reloadNonce={reloadNonce} />;
+    return <HtmlView file={file} reloadNonce={reloadNonce} onRawContentLoaded={onRawContentLoaded} />;
   }
   // Still loading info — blank surface (avoids a flash of the wrong view).
   if (!info) return <div className="doc html-view" />;
 
   if (info.trusted) {
-    return <AppView file={file} reloadNonce={reloadNonce} />;
+    return <AppView file={file} reloadNonce={reloadNonce} onRawContentLoaded={onRawContentLoaded} />;
   }
   if (declined) {
-    return <HtmlView file={file} reloadNonce={reloadNonce} />;
+    return <HtmlView file={file} reloadNonce={reloadNonce} onRawContentLoaded={onRawContentLoaded} />;
   }
 
   return <TrustPrompt info={info} onTrust={onTrust} onDecline={() => setDeclined(true)} />;

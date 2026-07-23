@@ -31,6 +31,13 @@ interface ExcalidrawViewProps {
   onOwnWrite?: (file: string, content: string) => void;
   onSaveStateChange?: (state: SaveState) => void;
   onConflict?: () => void;
+  /**
+   * The drawing text as it stands on screen, plus whether that exact value has
+   * completed saving — what Copy contents copies. Published with its file so a
+   * reply arriving after a switch can be discarded rather than attributed to
+   * the newly-open drawing.
+   */
+  onRawContentChange?: (file: string, raw: string, saved: boolean) => void;
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -84,6 +91,7 @@ export function ExcalidrawView({
   onOwnWrite,
   onSaveStateChange,
   onConflict,
+  onRawContentChange,
 }: ExcalidrawViewProps) {
   const theme = useResolvedTheme();
   const requestKey = `${file}:${reloadNonce}`;
@@ -103,9 +111,19 @@ export function ExcalidrawView({
   saveStateCb.current = onSaveStateChange;
   const conflictCb = useRef(onConflict);
   conflictCb.current = onConflict;
+  const rawContentCb = useRef(onRawContentChange);
+  rawContentCb.current = onRawContentChange;
   const persistPendingRef = useRef<() => void>(() => {});
 
   const setSaveState = (state: SaveState) => saveStateCb.current?.(state);
+  // The last drawing text published to Copy contents. A completing save only
+  // marks a value saved while it is still the latest one — otherwise a save
+  // that started before the newest stroke would report unsaved work as saved.
+  const publishedRef = useRef<string | null>(null);
+  const publish = (raw: string, saved: boolean) => {
+    publishedRef.current = raw;
+    rawContentCb.current?.(fileRef.current, raw, saved);
+  };
 
   persistPendingRef.current = () => {
     if (inFlightRef.current || conflictedRef.current) return;
@@ -125,6 +143,10 @@ export function ExcalidrawView({
         if (session !== sessionRef.current) return;
         inFlightRef.current = false;
         versionRef.current = version;
+        // This exact value is now on disk — but only report it saved while it
+        // is still what the canvas shows; a stroke landing mid-flight has
+        // already published a newer value that this write didn't carry.
+        if (publishedRef.current === content) publish(content, true);
         if (pendingContentRef.current !== null && timerRef.current === null) {
           persistPendingRef.current();
         } else if (pendingContentRef.current === null) {
@@ -157,11 +179,16 @@ export function ExcalidrawView({
     conflictedRef.current = false;
     versionRef.current = null;
     lastSerializedRef.current = null;
+    publishedRef.current = null;
     setSaveState("idle");
     let cancelled = false;
     fetchDrawing(file).then(
       ({ content, version }) => {
         if (cancelled) return;
+        // Publish the exact disk text BEFORE parsing: a drawing whose JSON
+        // can't render is still a text file, and Copy contents must serve its
+        // raw bytes rather than disappear along with the canvas.
+        publish(content, true);
         try {
           versionRef.current = version;
           setLoaded({ requestKey, scene: parseDrawing(content) });
@@ -217,6 +244,9 @@ export function ExcalidrawView({
     }
     lastSerializedRef.current = content;
     pendingContentRef.current = content;
+    // Copy contents follows the canvas immediately — a stroke is on screen well
+    // before the debounced write reaches disk, and that is what a copy must serve.
+    publish(content, false);
     setSaveState("saving");
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {

@@ -17,13 +17,23 @@
  * out into the app restores them. This is inherent to the isolation, not a bug.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiError, fetchHtmlFile } from "./api.js";
 import { IframeSurface } from "./IframeSurface.js";
 
-export function HtmlView({ file, reloadNonce }: { file: string; reloadNonce: number }) {
+export function HtmlView({
+  file,
+  reloadNonce,
+  onRawContentLoaded,
+}: {
+  file: string;
+  reloadNonce: number;
+  onRawContentLoaded?: (file: string, raw: string) => void;
+}) {
   const [html, setHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const rawLoadedCb = useRef(onRawContentLoaded);
+  rawLoadedCb.current = onRawContentLoaded;
 
   // Re-fetches on `file` change and on `reloadNonce` bump (the change-banner's
   // Reload). A fresh fetch swaps the iframe's srcDoc, so there's no iframe URL
@@ -34,7 +44,10 @@ export function HtmlView({ file, reloadNonce }: { file: string; reloadNonce: num
     setError(null);
     fetchHtmlFile(file)
       .then((text) => {
-        if (!cancelled) setHtml(text);
+        if (cancelled) return;
+        setHtml(text);
+        // The exact source now rendered into the frame — what Copy contents copies.
+        rawLoadedCb.current?.(file, text);
       })
       .catch((e: unknown) => {
         if (cancelled) return;
