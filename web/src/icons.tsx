@@ -180,6 +180,18 @@ export function CopyPathIcon({ size = 14 }: { size?: number }) {
   );
 }
 
+/** Copying a file's text. Deliberately lines-of-text rather than the tree's
+ *  FileIcon, which would read as "a file" instead of "its contents". */
+export function CopyContentsIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...stroke} strokeWidth={1.8}>
+      <rect x="9" y="9" width="12" height="12" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+      <path d="M12 13.5h6M12 17h4" />
+    </svg>
+  );
+}
+
 /** Ending an agent session — a stop sign, not a trash can: nothing is deleted. */
 export function EndSessionIcon({ size = 14 }: { size?: number }) {
   return (

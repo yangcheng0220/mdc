@@ -10,7 +10,13 @@
 
 import type { ReactNode } from "react";
 import { DropdownMenu } from "./DropdownMenu.js";
-import { CopyFilenameIcon, CopyPathIcon, EndSessionIcon, KebabIcon } from "./icons.js";
+import {
+  CopyContentsIcon,
+  CopyFilenameIcon,
+  CopyPathIcon,
+  EndSessionIcon,
+  KebabIcon,
+} from "./icons.js";
 
 /** One menu row: closes the menu, then acts. */
 function Item({
@@ -47,10 +53,13 @@ function Item({
 export function DocActionsMenu({
   onCopyFilename,
   onCopyPath,
+  onCopyContents,
   onEndSession,
 }: {
   onCopyFilename: () => void;
   onCopyPath: () => void;
+  /** Present only for text files — images and PDFs have no contents to copy. */
+  onCopyContents?: () => void;
   /** Present only while an agent is watching this file; absent otherwise. */
   onEndSession?: () => void;
 }) {
@@ -71,6 +80,11 @@ export function DocActionsMenu({
           <Item close={close} onSelect={onCopyPath} icon={<CopyPathIcon />}>
             Copy path
           </Item>
+          {onCopyContents && (
+            <Item close={close} onSelect={onCopyContents} icon={<CopyContentsIcon />}>
+              Copy contents
+            </Item>
+          )}
           {onEndSession && (
             <>
               <div className="doc-menu-separator" role="separator" />

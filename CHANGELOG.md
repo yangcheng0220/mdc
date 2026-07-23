@@ -6,6 +6,7 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 
 ### Added
 - A ⋮ Document actions menu at the end of the doc toolbar, on every file type, with **Copy filename** and **Copy path** (the absolute path, the same form the handoff prompt uses).
+- **Copy contents** in the ⋮ menu for markdown, copying the raw text (frontmatter included) that matches what's on screen — the live edit buffer before autosave, the editable side of a conflict review, or a previewed suggestion. The toast notes `· unsaved` until that exact text is on disk, and `· reload pending` when you're looking at a snapshot the file has since moved past.
 
 ### Changed
 - File-tree context menus now show familiar icons and separate creation actions from deletion.
