@@ -6,8 +6,9 @@
  * collapsed (it's a navigator, not a triage surface); the active file's row is
  * highlighted wherever it sits.
  *
- * Right-clicking a row (or empty tree space) opens a context menu — new file /
- * folder / delete — and choosing "New" drops an inline name input at the target.
+ * Right-clicking a row (or empty tree space) opens a context menu — create, copy,
+ * and delete actions for that row — and choosing "New" drops an inline name input
+ * at the target.
  */
 
 import { useMemo, useState } from "react";

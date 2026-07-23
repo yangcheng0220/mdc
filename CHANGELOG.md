@@ -8,6 +8,7 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 - A ⋮ Document actions menu at the end of the doc toolbar, on every file type, with **Copy filename** and **Copy path** (the absolute path, the same form the handoff prompt uses).
 - **Copy contents** in the ⋮ menu for markdown, copying the raw text (frontmatter included) that matches what's on screen — the live edit buffer before autosave, the editable side of a conflict review, or a previewed suggestion. The toast notes `· unsaved` until that exact text is on disk, and `· reload pending` when you're looking at a snapshot the file has since moved past.
 - **Copy contents** also covers drawings and HTML files. A drawing copies the live canvas, including a change still waiting for autosave, and a drawing whose contents can't be rendered still copies its raw text. HTML copies the source behind the page you're looking at, whether it's shown as plain HTML or running as a trusted app. Images and PDFs have no text to copy, so the item isn't offered for them.
+- The same copy actions on file-tree right-click, acting on the row you clicked rather than the open file: a file offers **Copy filename**, **Copy path**, and — when it has text — **Copy contents**; a folder offers **Copy path**. Copying the open file picks up its live version and `· unsaved` / `· reload pending` status just as the ⋮ menu does, while any other row is read from disk.
 
 ### Changed
 - File-tree context menus now show familiar icons and separate creation actions from deletion.

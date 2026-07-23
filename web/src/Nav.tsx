@@ -6,15 +6,27 @@
  *
  * This frame owns the file-tree *interaction* state for create/delete: the open
  * context menu and where an inline create input sits. The actual disk mutations
- * (create/delete + index refresh + toast) are App-provided callbacks. The "+"
- * switcher segment is a root-create action button, not a pane.
+ * (create/delete + index refresh + toast) and the copy actions are App-provided
+ * callbacks — this frame only identifies the right-clicked row and builds the
+ * menu's sections. The "+" switcher segment is a root-create action button, not
+ * a pane.
  */
 
 import { useCallback, useState } from "react";
 import { ContextMenu, type MenuItem, type MenuState } from "./ContextMenu.js";
 import { resolveCreateName } from "./createName.js";
 import { FilesPane, type CreateTarget } from "./FilesPane.js";
-import { DrawingIcon, FileIcon, FolderIcon, GearIcon, PanelLeftIcon, TrashIcon } from "./icons.js";
+import {
+  CopyContentsIcon,
+  CopyFilenameIcon,
+  CopyPathIcon,
+  DrawingIcon,
+  FileIcon,
+  FolderIcon,
+  GearIcon,
+  PanelLeftIcon,
+  TrashIcon,
+} from "./icons.js";
 import { OutlinePane } from "./OutlinePane.js";
 import type { PaneId } from "./usePane.js";
 import type { Tabs as TabsState } from "./useTabs.js";
@@ -58,6 +70,10 @@ export function Nav({
   onRequestDeleteFile,
   onRequestDeleteFolder,
   onRequestMove,
+  onCopyFilename,
+  onCopyPath,
+  onCopyContents,
+  offersCopyContents,
 }: {
   root: string;
   /** Openable files in the tree — markdown docs, image files, and HTML files. */
@@ -93,6 +109,13 @@ export function Nav({
   onRequestDeleteFolder: (path: string) => void;
   /** Request moving a doc/folder into a destination folder ("" = root). */
   onRequestMove: (from: string, destFolder: string) => void;
+  // Copy actions act on the path handed to them — the right-clicked row, which
+  // need not be the open file. App owns the read, clipboard write, and toast.
+  onCopyFilename: (path: string) => void;
+  onCopyPath: (path: string) => void;
+  onCopyContents: (path: string) => void;
+  /** Whether a file has text to copy — false for images and PDFs. */
+  offersCopyContents: (path: string | null) => boolean;
 }) {
   // Tree/outline fold state is owned HERE, not in the panes, because each pane
   // unmounts when the user switches to the other — local state would reset, so
@@ -167,7 +190,9 @@ export function Nav({
   );
 
   // Right-click a row → menu whose items depend on what was clicked. Folder rows
-  // and empty root space can create; everything offers delete (except root).
+  // and empty root space can create; everything offers delete (except root). The
+  // copy actions target the clicked row, matching what the toolbar ⋮ offers for
+  // that file — a folder copies only its path.
   const openContextMenu = useCallback(
     (e: React.MouseEvent, t: { kind: "folder" | "file" | "root"; path: string }) => {
       e.preventDefault();
@@ -175,6 +200,29 @@ export function Nav({
       const items: MenuItem[] =
         t.kind === "file"
           ? [
+              {
+                type: "action",
+                label: "Copy filename",
+                icon: <CopyFilenameIcon />,
+                onSelect: () => onCopyFilename(t.path),
+              },
+              {
+                type: "action",
+                label: "Copy path",
+                icon: <CopyPathIcon />,
+                onSelect: () => onCopyPath(t.path),
+              },
+              ...(offersCopyContents(t.path)
+                ? [
+                    {
+                      type: "action" as const,
+                      label: "Copy contents",
+                      icon: <CopyContentsIcon />,
+                      onSelect: () => onCopyContents(t.path),
+                    },
+                  ]
+                : []),
+              { type: "separator" },
               {
                 type: "action",
                 label: "Delete",
@@ -202,6 +250,13 @@ export function Nav({
                   label: "New folder",
                   icon: <FolderIcon />,
                   onSelect: () => startCreate("folder", t.path),
+                },
+                { type: "separator" },
+                {
+                  type: "action",
+                  label: "Copy path",
+                  icon: <CopyPathIcon />,
+                  onSelect: () => onCopyPath(t.path),
                 },
                 { type: "separator" },
                 {
@@ -234,7 +289,15 @@ export function Nav({
               ];
       setMenu({ x: e.clientX, y: e.clientY, items });
     },
-    [startCreate, onRequestDeleteFile, onRequestDeleteFolder],
+    [
+      startCreate,
+      onRequestDeleteFile,
+      onRequestDeleteFolder,
+      onCopyFilename,
+      onCopyPath,
+      onCopyContents,
+      offersCopyContents,
+    ],
   );
 
   // The "+" action: jump to the Files pane, then start a root-level new file —
