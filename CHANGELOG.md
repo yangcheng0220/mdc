@@ -4,6 +4,9 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 
 ## [Unreleased]
 
+### Changed
+- File-tree context menus now show familiar icons and separate creation actions from deletion.
+
 ## [0.6.2] - 2026-07-20
 
 ### Fixed

@@ -5,13 +5,21 @@
  * resize all dismiss it; a destructive item renders in the danger color.
  */
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
-interface MenuItem {
+interface MenuAction {
+  type: "action";
   label: string;
+  icon: ReactNode;
   onSelect: () => void;
   danger?: boolean;
 }
+
+interface MenuSeparator {
+  type: "separator";
+}
+
+export type MenuItem = MenuAction | MenuSeparator;
 
 export interface MenuState {
   x: number;
@@ -66,18 +74,25 @@ export function ContextMenu({ menu, onClose }: { menu: MenuState; onClose: () =>
       style={{ left: pos.x, top: pos.y }}
     >
       {menu.items.map((item, i) => (
-        <button
-          key={i}
-          type="button"
-          role="menuitem"
-          className={`context-menu-item${item.danger ? " danger" : ""}`}
-          onClick={() => {
-            onClose();
-            item.onSelect();
-          }}
-        >
-          {item.label}
-        </button>
+        item.type === "separator" ? (
+          <div key={i} className="context-menu-separator" role="separator" />
+        ) : (
+          <button
+            key={i}
+            type="button"
+            role="menuitem"
+            className={`context-menu-item${item.danger ? " danger" : ""}`}
+            onClick={() => {
+              onClose();
+              item.onSelect();
+            }}
+          >
+            <span className="context-menu-icon" aria-hidden="true">
+              {item.icon}
+            </span>
+            <span>{item.label}</span>
+          </button>
+        )
       ))}
     </div>
   );

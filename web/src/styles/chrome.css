@@ -233,7 +233,9 @@
   gap: 1px;
 }
 .context-menu-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   width: 100%;
   text-align: left;
   background: transparent;
@@ -244,6 +246,15 @@
   font-size: 13px;
   color: var(--text);
   cursor: pointer;
+}
+.context-menu-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.context-menu-separator {
+  height: 1px;
+  margin: 3px 4px;
+  background: var(--border);
 }
 .context-menu-item:hover {
   background: var(--hover);

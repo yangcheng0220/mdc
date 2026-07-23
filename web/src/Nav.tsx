@@ -11,10 +11,10 @@
  */
 
 import { useCallback, useState } from "react";
-import { ContextMenu, type MenuState } from "./ContextMenu.js";
+import { ContextMenu, type MenuItem, type MenuState } from "./ContextMenu.js";
 import { resolveCreateName } from "./createName.js";
 import { FilesPane, type CreateTarget } from "./FilesPane.js";
-import { GearIcon, PanelLeftIcon } from "./icons.js";
+import { DrawingIcon, FileIcon, FolderIcon, GearIcon, PanelLeftIcon, TrashIcon } from "./icons.js";
 import { OutlinePane } from "./OutlinePane.js";
 import type { PaneId } from "./usePane.js";
 import type { Tabs as TabsState } from "./useTabs.js";
@@ -172,20 +172,65 @@ export function Nav({
     (e: React.MouseEvent, t: { kind: "folder" | "file" | "root"; path: string }) => {
       e.preventDefault();
       e.stopPropagation();
-      const items =
+      const items: MenuItem[] =
         t.kind === "file"
-          ? [{ label: "Delete", danger: true, onSelect: () => onRequestDeleteFile(t.path) }]
+          ? [
+              {
+                type: "action",
+                label: "Delete",
+                icon: <TrashIcon />,
+                danger: true,
+                onSelect: () => onRequestDeleteFile(t.path),
+              },
+            ]
           : t.kind === "folder"
             ? [
-                { label: "New file", onSelect: () => startCreate("file", t.path) },
-                { label: "New drawing", onSelect: () => startCreate("drawing", t.path) },
-                { label: "New folder", onSelect: () => startCreate("folder", t.path) },
-                { label: "Delete", danger: true, onSelect: () => onRequestDeleteFolder(t.path) },
+                {
+                  type: "action",
+                  label: "New file",
+                  icon: <FileIcon />,
+                  onSelect: () => startCreate("file", t.path),
+                },
+                {
+                  type: "action",
+                  label: "New drawing",
+                  icon: <DrawingIcon />,
+                  onSelect: () => startCreate("drawing", t.path),
+                },
+                {
+                  type: "action",
+                  label: "New folder",
+                  icon: <FolderIcon />,
+                  onSelect: () => startCreate("folder", t.path),
+                },
+                { type: "separator" },
+                {
+                  type: "action",
+                  label: "Delete",
+                  icon: <TrashIcon />,
+                  danger: true,
+                  onSelect: () => onRequestDeleteFolder(t.path),
+                },
               ]
             : [
-                { label: "New file", onSelect: () => startCreate("file", "") },
-                { label: "New drawing", onSelect: () => startCreate("drawing", "") },
-                { label: "New folder", onSelect: () => startCreate("folder", "") },
+                {
+                  type: "action",
+                  label: "New file",
+                  icon: <FileIcon />,
+                  onSelect: () => startCreate("file", ""),
+                },
+                {
+                  type: "action",
+                  label: "New drawing",
+                  icon: <DrawingIcon />,
+                  onSelect: () => startCreate("drawing", ""),
+                },
+                {
+                  type: "action",
+                  label: "New folder",
+                  icon: <FolderIcon />,
+                  onSelect: () => startCreate("folder", ""),
+                },
               ];
       setMenu({ x: e.clientX, y: e.clientY, items });
     },
