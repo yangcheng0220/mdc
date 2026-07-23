@@ -288,9 +288,19 @@ export const Editor = forwardRef<EditorHandle, {
     publishedSaved.current = saved;
     rawContentCb.current?.(raw, saved);
   };
-  /** Mark `value` saved only if it is still what the buffer shows. */
+  /**
+   * Mark `value` saved once its write lands — but only where it is still the
+   * text in question, so a slow save never marks newer text as on-disk.
+   *
+   * A preview open over the buffer is the awkward case: the published value is
+   * the proposed text, while the save that just completed was for the buffer
+   * underneath it. Update the preview's remembered status too, so closing it
+   * restores disk-identical text as saved rather than stranding it unsaved.
+   */
   const markSaved = (value: string) => {
     if (publishedRaw.current === value) publishRaw(value, true);
+    const preview = suggestionPreviewRef.current;
+    if (preview && preview.original === value) preview.originalSaved = true;
   };
   const anchorYsCb = useRef(onCommentAnchorYsChange);
   anchorYsCb.current = onCommentAnchorYsChange;
@@ -664,6 +674,8 @@ export const Editor = forwardRef<EditorHandle, {
         setSaveState("saved");
       })
       .catch((e: unknown) => {
+        // Leaving review republishes the visible buffer (see the merge view's
+        // teardown), so a failed save can't leave invisible merge text copyable.
         if (e instanceof ApiError && e.status === 409) {
           setConflict("banner");
           setSaveState("conflict");
@@ -724,6 +736,13 @@ export const Editor = forwardRef<EditorHandle, {
     return () => {
       mv.destroy();
       mergeRef.current = null;
+      // Whatever ends the review — Save result, a 409, or Back — the plain
+      // editor returns showing `text`. Hand that back as the copy source so a
+      // torn-down merge buffer can't keep serving text nobody can see. A
+      // successful save has already published its own (saved) value, so only
+      // republish when the buffer still differs from what was published.
+      const shown = textRef.current ?? "";
+      if (publishedRaw.current !== shown) publishRaw(shown, false);
     };
   }, [conflict]);
 

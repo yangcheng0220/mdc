@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { absolutePath, byteSize, filename, formatSize } from "../web/src/copyTargets.js";
+import {
+  absolutePath,
+  byteSize,
+  filename,
+  formatSize,
+  offersCopyContents,
+} from "../web/src/copyTargets.js";
 
 describe("absolutePath", () => {
   it.each([
@@ -93,5 +99,30 @@ describe("formatSize", () => {
     for (const n of [999_949, 999_950, 999_999, 999_949_999]) {
       expect(formatSize(n)).not.toMatch(/^1000 /);
     }
+  });
+});
+
+describe("offersCopyContents", () => {
+  it("offers contents for a markdown file once its type is known", () => {
+    expect(offersCopyContents({ file: "notes.md", typeKnown: true, isNonMd: false })).toBe(true);
+  });
+
+  it.each([
+    ["an image", "pic.png"],
+    ["a PDF", "paper.pdf"],
+    ["an HTML file", "page.html"],
+  ])("withholds contents for %s", (_label, file) => {
+    expect(offersCopyContents({ file, typeKnown: true, isNonMd: true })).toBe(false);
+  });
+
+  it("withholds contents until the index resolves the type", () => {
+    // Before the index lands every path looks like markdown, so a deep-linked
+    // image would otherwise be offered a copy that fails on read.
+    expect(offersCopyContents({ file: "page.html", typeKnown: false, isNonMd: false })).toBe(false);
+    expect(offersCopyContents({ file: "notes.md", typeKnown: false, isNonMd: false })).toBe(false);
+  });
+
+  it("withholds contents when no file is open", () => {
+    expect(offersCopyContents({ file: null, typeKnown: true, isNonMd: false })).toBe(false);
   });
 });

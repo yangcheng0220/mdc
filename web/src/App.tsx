@@ -46,7 +46,7 @@ import { CmdK } from "./CmdK.js";
 import { Comments, type SidebarView } from "./Comments.js";
 import { ConfirmDialog } from "./ConfirmDialog.js";
 import type { PendingComment } from "./commentData.js";
-import { absolutePath, byteSize, filename, formatSize } from "./copyTargets.js";
+import { absolutePath, byteSize, filename, formatSize, offersCopyContents } from "./copyTargets.js";
 import { actionableSuggestion, type Suggestion } from "../../src/threads.js";
 import { findTargetStrict } from "../../src/anchor.js";
 import { Doc, type SuggestionPreviewRequest } from "./Doc.js";
@@ -1454,8 +1454,18 @@ export function App() {
             onCopyFilename={onCopyFilename}
             onCopyPath={onCopyPath}
             // Markdown only in this slice; drawings and HTML follow in #61,
-            // and images/PDFs never get it (no text to copy).
-            onCopyContents={activeFile && !isNonMd(activeFile) ? onCopyContents : undefined}
+            // and images/PDFs never get it (no text to copy). Withheld until the
+            // index resolves the type: before that every file looks like
+            // markdown, so a deep-linked image would offer a copy that 404s.
+            onCopyContents={
+              offersCopyContents({
+                file: activeFile,
+                typeKnown,
+                isNonMd: isNonMd(activeFile),
+              })
+                ? onCopyContents
+                : undefined
+            }
             navCollapsed={panels.navCollapsed}
             // Drawings have no text anchors, so the comments surface stays unavailable.
             sidebarCollapsed={isDrawing(activeFile) ? false : panels.sidebarCollapsed}

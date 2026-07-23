@@ -30,6 +30,22 @@ export function filename(path: string): string {
 }
 
 /**
+ * Whether a file offers Copy contents — i.e. whether it has raw text a user
+ * could paste. Images and PDFs don't; markdown does.
+ *
+ * `typeKnown` is not a detail: the file index is what resolves a path's type,
+ * and until it arrives every file looks like markdown. Offering Copy contents
+ * in that window puts the action on a deep-linked image, where it fails.
+ */
+export function offersCopyContents(opts: {
+  file: string | null;
+  typeKnown: boolean;
+  isNonMd: boolean;
+}): boolean {
+  return opts.file !== null && opts.typeKnown && !opts.isNonMd;
+}
+
+/**
  * The UTF-8 byte length of what actually reaches the clipboard — not
  * `string.length`, which counts UTF-16 units and under-reports any non-ASCII
  * text.
