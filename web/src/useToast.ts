@@ -12,6 +12,12 @@ export interface ToastData {
   paste?: boolean;
   /** Optional secondary line, rendered under `meta` (e.g. a follow-up pointer). */
   hint?: string;
+  /**
+   * Truncate an over-long `meta` from the START, keeping the end visible — used
+   * by copy confirmations, where the filename at the tail of a path identifies
+   * what was copied. Ordinary prose toasts keep their normal wrapping.
+   */
+  truncateMetaFromStart?: boolean;
 }
 
 export interface ToastState {

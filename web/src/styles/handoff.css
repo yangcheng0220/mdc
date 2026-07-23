@@ -90,29 +90,49 @@
   box-shadow: none;
 }
 
-/* Session ⋯ menu — reuses .comment-menu (dropdown/items), but the kebab button
-   is always visible (a toolbar control, not a hover-revealed comment affordance).
-   The override needs higher specificity to beat the base .comment-menu-btn
-   (opacity:0 until hover). */
-.handoff-menu-wrap {
+/* Document actions ⋮ menu — reuses .comment-menu (dropdown/items), but the kebab
+   button is always visible (a toolbar control, not a hover-revealed comment
+   affordance). The override needs higher specificity to beat the base
+   .comment-menu-btn (opacity:0 until hover). */
+.doc-menu-wrap {
   flex-shrink: 0;
 }
-.handoff-menu-wrap .handoff-menu-btn {
+.doc-menu-wrap .doc-menu-btn {
   opacity: 1;
   pointer-events: auto;
   width: 28px;
   height: 28px;
   color: var(--text-muted);
 }
-.handoff-menu-wrap .handoff-menu-btn:hover {
+.doc-menu-wrap .doc-menu-btn:hover {
   color: var(--text);
   border-color: var(--border-mid);
   background: var(--wash);
 }
-.handoff-menu .menu-danger {
+/* Icon before label, matching the ContextMenu action row's compact gap. The
+   shared .comment-menu min-width is sized for one-word verbs ("Edit"); these
+   labels plus a leading icon need room to stay on one line. */
+.doc-menu {
+  min-width: 160px;
+}
+.doc-menu button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.doc-menu button svg {
+  flex-shrink: 0;
+}
+.doc-menu-separator {
+  height: 1px;
+  margin: 3px 4px;
+  background: var(--border);
+}
+.doc-menu .menu-danger {
   color: var(--danger);
 }
-.handoff-menu .menu-danger:hover {
+.doc-menu .menu-danger:hover {
   background: var(--danger-tint);
 }
 
@@ -147,6 +167,18 @@
 .toast-meta {
   color: var(--toast-text-dim);
   font-size: 12px;
+}
+/* Copied-value meta: ellipsize from the START so the filename at the tail stays
+   visible ("…/specs/doc-actions-menu/TECH.md"). `direction: rtl` moves the
+   ellipsis to the leading edge; the <bdi> in Toast.tsx keeps the value itself
+   logically LTR so a leading "/" isn't reordered to the end. */
+.toast-meta-start-ellipsis {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  direction: rtl;
 }
 .toast-hint {
   display: block;
