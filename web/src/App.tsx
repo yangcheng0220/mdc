@@ -28,6 +28,7 @@ import {
   fetchDoc,
   fetchDrawing,
   fetchFolderSummary,
+  fetchHtmlFile,
   fetchMovePreview,
   moveFile,
   postApplySuggestion,
@@ -222,6 +223,21 @@ export function App() {
     editorCopyState.current = { raw, saved };
     setEditorRawContent(raw);
   }, []);
+  // What the drawing canvas or HTML surface last rendered, on the same
+  // click-time-read basis as the editor buffer above. One ref serves both:
+  // only one of those surfaces is mounted at a time.
+  //
+  // The snapshot carries its file because it arrives from async loads and
+  // saves — a reply that outlives a tab switch is discarded rather than
+  // credited to the newly-open file.
+  const surfaceCopyState = useRef<{ file: string; raw: string; saved: boolean } | null>(null);
+  const onDrawingRawContentChange = useCallback((file: string, raw: string, saved: boolean) => {
+    surfaceCopyState.current = { file, raw, saved };
+  }, []);
+  // HTML has no editable buffer, so what rendered is always exact disk text.
+  const onHtmlRawContentLoaded = useCallback((file: string, raw: string) => {
+    surfaceCopyState.current = { file, raw, saved: true };
+  }, []);
   const [editorAnchorYs, setEditorAnchorYs] = useState<CommentAnchorY[]>([]);
   const [editorHost, setEditorHost] = useState<HTMLElement | null>(null);
   useEffect(() => {
@@ -229,6 +245,7 @@ export function App() {
     setViewRawContent(null);
     setEditorRawContent(null);
     editorCopyState.current = { raw: null, saved: true };
+    surfaceCopyState.current = null;
     setEditorAnchorYs([]);
     setSuggestionPreview(null);
     setReplyPrompt(null);
@@ -476,29 +493,46 @@ export function App() {
 
   // Copy contents copies what is ON SCREEN, which is not always what is on disk:
   // the edit buffer before autosave, the editable side of a conflict review, a
-  // pinned suggestion's proposed text, or — behind the doc-changed banner — the
-  // snapshot still displayed rather than the newer value nobody has seen.
+  // pinned suggestion's proposed text, the live drawing canvas before its
+  // debounced write, or — behind the doc-changed banner — the snapshot still
+  // displayed rather than the newer value nobody has seen.
+  //
+  // Each surface publishes into a ref, read at click time rather than as of the
+  // last render: a surface can publish synchronously in the same tick as the
+  // click, and React state would still hold the pre-publish value.
   const onCopyContents = useCallback(() => {
     if (!activeFile) return;
-    const editing = editingFiles.has(activeFile);
-    // Read the buffer at click time, not as of the last render (see the ref).
-    const editorState = editorCopyState.current;
-    const displayed = editing ? editorState.raw : viewRawContent;
     const name = filename(activeFile);
-    // Unsaved beats reload-pending: an edit buffer is the user's own unsaved
-    // work, whereas the banner is only about a change they haven't adopted.
-    const suffix = editing
-      ? editorState.saved
-        ? ""
-        : " · unsaved"
-      : docChanged
-        ? " · reload pending"
-        : "";
+    let displayed: string | null = null;
+    let saved = true;
+    let read: () => Promise<string>;
+    if (isDrawing(activeFile) || isHtml(activeFile)) {
+      // A snapshot tagged with another file is a reply that outlived a tab
+      // switch — discard it and fall back to a read.
+      const state = surfaceCopyState.current;
+      if (state?.file === activeFile) {
+        displayed = state.raw;
+        saved = state.saved;
+      }
+      read = isDrawing(activeFile)
+        ? () => fetchDrawing(activeFile).then((d) => d.content)
+        : () => fetchHtmlFile(activeFile);
+    } else {
+      const editing = editingFiles.has(activeFile);
+      const editorState = editorCopyState.current;
+      displayed = editing ? editorState.raw : viewRawContent;
+      saved = editing ? editorState.saved : true;
+      read = () => fetchDoc(activeFile).then((d) => d.content);
+    }
+    // Unsaved beats reload-pending: an unsaved buffer or canvas is the user's
+    // own work, whereas the banner is only about a change they haven't adopted.
+    const suffix = !saved ? " · unsaved" : docChanged ? " · reload pending" : "";
     copy(
       "Copied contents",
-      // A surface that hasn't published its source yet (or was never loaded)
-      // falls back to a disk read rather than copying nothing.
-      () => (displayed !== null ? displayed : fetchDoc(activeFile).then((d) => d.content)),
+      // A surface that hasn't published its source yet — a trust prompt with no
+      // HTML rendered behind it, a drawing mid-load — falls back to a disk read
+      // rather than copying nothing.
+      () => (displayed !== null ? displayed : read()),
       (value) => `${name} · ${formatSize(byteSize(value))}${suffix}`,
       () =>
         toast.show({
@@ -506,7 +540,7 @@ export function App() {
           meta: `Couldn't read ${name}. It may have moved or been deleted.`,
         }),
     );
-  }, [activeFile, editingFiles, viewRawContent, docChanged, copy, toast]);
+  }, [activeFile, editingFiles, viewRawContent, docChanged, copy, toast, isDrawing, isHtml]);
 
   const onHandoff = useCallback(async () => {
     const session = presence.active;
@@ -1453,15 +1487,16 @@ export function App() {
             onEndSession={() => setConfirmEnd(true)}
             onCopyFilename={onCopyFilename}
             onCopyPath={onCopyPath}
-            // Markdown only in this slice; drawings and HTML follow in #61,
-            // and images/PDFs never get it (no text to copy). Withheld until the
-            // index resolves the type: before that every file looks like
-            // markdown, so a deep-linked image would offer a copy that 404s.
+            // Every text surface — markdown, drawings, HTML. Images and PDFs
+            // never get it (no text to copy). Withheld until the index resolves
+            // the type: before that every file looks like markdown, so a
+            // deep-linked image would offer a copy that 404s.
             onCopyContents={
               offersCopyContents({
                 file: activeFile,
                 typeKnown,
-                isNonMd: isNonMd(activeFile),
+                isImage: isImage(activeFile),
+                isPdf: isPdf(activeFile),
               })
                 ? onCopyContents
                 : undefined
@@ -1504,7 +1539,11 @@ export function App() {
             ) : activeFile && isImage(activeFile) ? (
               <ImageView file={activeFile} reloadNonce={docReloadNonce} />
             ) : activeFile && isHtml(activeFile) ? (
-              <HtmlSurface file={activeFile} reloadNonce={docReloadNonce} />
+              <HtmlSurface
+                file={activeFile}
+                reloadNonce={docReloadNonce}
+                onRawContentLoaded={onHtmlRawContentLoaded}
+              />
             ) : activeFile && isPdf(activeFile) ? (
               <PdfView file={activeFile} reloadNonce={docReloadNonce} />
             ) : activeFile && isDrawing(activeFile) ? (
@@ -1517,6 +1556,7 @@ export function App() {
                   onOwnWrite={onDrawingWrite}
                   onSaveStateChange={setSaveState}
                   onConflict={() => setDocChanged(true)}
+                  onRawContentChange={onDrawingRawContentChange}
                 />
               </Suspense>
             ) : activeFile && editingFiles.has(activeFile) ? (

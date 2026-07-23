@@ -103,26 +103,42 @@ describe("formatSize", () => {
 });
 
 describe("offersCopyContents", () => {
-  it("offers contents for a markdown file once its type is known", () => {
-    expect(offersCopyContents({ file: "notes.md", typeKnown: true, isNonMd: false })).toBe(true);
+  it.each([
+    ["a markdown file", "notes.md"],
+    // Non-markdown, but still text: a drawing copies its scene JSON and an HTML
+    // file its source. "Is this text" is the predicate, not "is this markdown".
+    ["a drawing", "diagram.excalidraw"],
+    ["a .excalidraw.json drawing", "diagram.excalidraw.json"],
+    ["an HTML file", "page.html"],
+  ])("offers contents for %s once its type is known", (_label, file) => {
+    expect(offersCopyContents({ file, typeKnown: true, isImage: false, isPdf: false })).toBe(true);
   });
 
-  it.each([
-    ["an image", "pic.png"],
-    ["a PDF", "paper.pdf"],
-    ["an HTML file", "page.html"],
-  ])("withholds contents for %s", (_label, file) => {
-    expect(offersCopyContents({ file, typeKnown: true, isNonMd: true })).toBe(false);
+  it("withholds contents for an image", () => {
+    expect(
+      offersCopyContents({ file: "pic.png", typeKnown: true, isImage: true, isPdf: false }),
+    ).toBe(false);
+  });
+
+  it("withholds contents for a PDF", () => {
+    expect(
+      offersCopyContents({ file: "paper.pdf", typeKnown: true, isImage: false, isPdf: true }),
+    ).toBe(false);
   });
 
   it("withholds contents until the index resolves the type", () => {
     // Before the index lands every path looks like markdown, so a deep-linked
     // image would otherwise be offered a copy that fails on read.
-    expect(offersCopyContents({ file: "page.html", typeKnown: false, isNonMd: false })).toBe(false);
-    expect(offersCopyContents({ file: "notes.md", typeKnown: false, isNonMd: false })).toBe(false);
+    for (const file of ["pic.png", "paper.pdf", "notes.md"]) {
+      expect(offersCopyContents({ file, typeKnown: false, isImage: false, isPdf: false })).toBe(
+        false,
+      );
+    }
   });
 
   it("withholds contents when no file is open", () => {
-    expect(offersCopyContents({ file: null, typeKnown: true, isNonMd: false })).toBe(false);
+    expect(offersCopyContents({ file: null, typeKnown: true, isImage: false, isPdf: false })).toBe(
+      false,
+    );
   });
 });

@@ -31,7 +31,12 @@ export function filename(path: string): string {
 
 /**
  * Whether a file offers Copy contents — i.e. whether it has raw text a user
- * could paste. Images and PDFs don't; markdown does.
+ * could paste. Markdown, drawings (their JSON), and HTML do; images and PDFs
+ * don't.
+ *
+ * The predicate is "is this text", NOT "is this markdown": a drawing and an
+ * HTML file are both non-markdown yet both copy their source. Only the two
+ * binary surfaces are excluded, so they are what the caller names.
  *
  * `typeKnown` is not a detail: the file index is what resolves a path's type,
  * and until it arrives every file looks like markdown. Offering Copy contents
@@ -40,9 +45,10 @@ export function filename(path: string): string {
 export function offersCopyContents(opts: {
   file: string | null;
   typeKnown: boolean;
-  isNonMd: boolean;
+  isImage: boolean;
+  isPdf: boolean;
 }): boolean {
-  return opts.file !== null && opts.typeKnown && !opts.isNonMd;
+  return opts.file !== null && opts.typeKnown && !opts.isImage && !opts.isPdf;
 }
 
 /**
