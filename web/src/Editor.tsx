@@ -38,6 +38,9 @@ interface EditSuggestionPreview {
   threadId: string;
   suggestionId: string;
   original: string;
+  /** Whether `original` was already on disk when the preview opened — restored
+   *  along with the text if the preview is closed or dismissed. */
+  originalSaved: boolean;
 }
 
 /** Conflict flow: a rejected save (or an external change signal) pauses
@@ -194,8 +197,11 @@ export const Editor = forwardRef<EditorHandle, {
   /** Reports the editor's live body (frontmatter stripped) on load and on each
    *  edit, so the outline tracks headings as you type — no wait for autosave. */
   onContentChange?: (body: string) => void;
-  /** Reports the editor's live raw markdown for comment anchor matching. */
-  onRawContentChange?: (raw: string) => void;
+  /** Reports the editor's live raw markdown for comment anchor matching, plus
+   *  whether that exact value has completed saving — Copy contents needs the
+   *  on-screen buffer and its freshness, which the coarse save state can't give
+   *  (it reports "saving" for a value already superseded by newer typing). */
+  onRawContentChange?: (raw: string, saved: boolean) => void;
   /** Reports each live comment anchor's Y (relative to the editor's scroll
    *  container top) after editor geometry changes. */
   onCommentAnchorYsChange?: (anchors: CommentAnchorY[]) => void;
@@ -272,6 +278,20 @@ export const Editor = forwardRef<EditorHandle, {
   contentCb.current = onContentChange;
   const rawContentCb = useRef(onRawContentChange);
   rawContentCb.current = onRawContentChange;
+  // The last value handed to the parent. A save resolves for one specific value,
+  // so it may only flip that value to "saved" if newer typing hasn't replaced it
+  // in the meantime — otherwise a slow save would mark stale text as on-disk.
+  const publishedRaw = useRef<string | null>(null);
+  const publishedSaved = useRef(true);
+  const publishRaw = (raw: string, saved: boolean) => {
+    publishedRaw.current = raw;
+    publishedSaved.current = saved;
+    rawContentCb.current?.(raw, saved);
+  };
+  /** Mark `value` saved only if it is still what the buffer shows. */
+  const markSaved = (value: string) => {
+    if (publishedRaw.current === value) publishRaw(value, true);
+  };
   const anchorYsCb = useRef(onCommentAnchorYsChange);
   anchorYsCb.current = onCommentAnchorYsChange;
   const commentLinesRef = useRef(commentLines);
@@ -454,7 +474,10 @@ export const Editor = forwardRef<EditorHandle, {
     const transaction = buildSuggestionEdit(view.state, suggestion);
     if (!transaction) return false;
     const changes = transaction.changes as { from: number };
-    const preview = { threadId, suggestionId, original };
+    // Remember whether the pre-preview buffer was on disk: restoring it on close
+    // or dismissal must restore that status too, not leave a saved doc marked
+    // unsaved just because a preview passed through it.
+    const preview = { threadId, suggestionId, original, originalSaved: publishedSaved.current };
     suggestionPreviewRef.current = preview;
     setPreviewOpen(true);
     view.dispatch(transaction);
@@ -587,7 +610,7 @@ export const Editor = forwardRef<EditorHandle, {
         theirsRef.current = null;
         setText(doc.content);
         contentCb.current?.(parseFrontmatter(doc.content).body);
-        rawContentCb.current?.(doc.content);
+        publishRaw(doc.content, true); // adopted from disk — matches the file
         setConflict("none");
         setSaveState("idle");
       })
@@ -604,6 +627,7 @@ export const Editor = forwardRef<EditorHandle, {
       .then((version) => {
         versionRef.current = version;
         theirsRef.current = null;
+        markSaved(value);
         setConflict("none");
         setSaveState("saved");
       })
@@ -635,7 +659,7 @@ export const Editor = forwardRef<EditorHandle, {
         theirsRef.current = null;
         setText(value);
         contentCb.current?.(parseFrontmatter(value).body);
-        rawContentCb.current?.(value);
+        publishRaw(value, true); // the merge resolution is now on disk
         setConflict("none");
         setSaveState("saved");
       })
@@ -662,7 +686,17 @@ export const Editor = forwardRef<EditorHandle, {
     const mv = new MergeView({
       parent: host,
       a: { doc: theirs.content, extensions: [...shared, EditorState.readOnly.of(true)] },
-      b: { doc: textRef.current ?? "", extensions: shared },
+      b: {
+        doc: textRef.current ?? "",
+        extensions: [
+          ...shared,
+          // Copy contents must follow the editable side while review is open —
+          // chunks pulled from disk and hand edits alike, none of them saved.
+          EditorView.updateListener.of((u) => {
+            if (u.docChanged) publishRaw(u.state.doc.toString(), false);
+          }),
+        ],
+      },
       revertControls: "a-to-b",
       // The default control is a bare squiggle glyph; render a real button with
       // a straight arrow instead (the package positions it and delegates the
@@ -683,6 +717,10 @@ export const Editor = forwardRef<EditorHandle, {
       gutter: true,
     });
     mergeRef.current = mv;
+    // Seed the copy source with the editable side as review opens, so a copy
+    // before the first edit still reads "Your version" rather than the buffer
+    // value published before the merge view existed.
+    publishRaw(mv.b.state.doc.toString(), false);
     return () => {
       mv.destroy();
       mergeRef.current = null;
@@ -730,7 +768,7 @@ export const Editor = forwardRef<EditorHandle, {
         versionRef.current = doc.version;
         setText(doc.content);
         contentCb.current?.(parseFrontmatter(doc.content).body); // seed the live outline
-        rawContentCb.current?.(doc.content);
+        publishRaw(doc.content, true); // freshly loaded — identical to disk
       })
       .catch((e: unknown) => {
         if (cancelled) return;
@@ -746,7 +784,12 @@ export const Editor = forwardRef<EditorHandle, {
   const onChange = (value: string) => {
     setText(value);
     contentCb.current?.(parseFrontmatter(value).body); // live outline tracks typing
-    rawContentCb.current?.(value);
+    // On screen but not yet on disk — including a pinned preview's proposed
+    // buffer, which stays unsaved until its own save completes. Backing out of a
+    // preview to its exact pre-preview text restores that text's prior status:
+    // a saved doc shouldn't read "unsaved" just because a preview passed by.
+    const open = suggestionPreviewRef.current;
+    publishRaw(value, open !== null && value === open.original ? open.originalSaved : false);
     // A pinned suggestion is a temporary buffer state. Undoing it restores the
     // original text and releases the merge decorations without saving.
     const preview = suggestionPreviewRef.current;
@@ -774,6 +817,7 @@ export const Editor = forwardRef<EditorHandle, {
       saveDoc(fileRef.current, value, versionRef.current ?? undefined)
         .then((version) => {
           versionRef.current = version;
+          markSaved(value); // no-op if newer typing already superseded it
           setSaveState("saved");
         })
         .catch((e: unknown) => {
