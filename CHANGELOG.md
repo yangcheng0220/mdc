@@ -16,6 +16,7 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 
 ### Fixed
 - Workspace names stay visible in browser tabs and standalone app windows when the served root path has a trailing slash.
+- Images, PDFs, HTML, and drawings no longer show a comments sidebar that cannot accept anchored comments.
 
 ## [0.6.2] - 2026-07-20
 

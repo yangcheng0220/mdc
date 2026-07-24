@@ -141,11 +141,14 @@ export function App() {
   // briefly render it as a doc (which would fire 404 /api/md + /api/comments for
   // a non-md file before the index arrives to correct the routing).
   const typeKnown = index !== null;
+  // Rendered non-markdown surfaces have no text anchors, so comments stay
+  // unavailable even if the user's persisted sidebar preference is open.
+  const commentsUnavailable = typeKnown && isNonMd(activeFile);
   const tabs = useTabs(index ? openablePaths : null, activeFile, setActiveFile);
   // A non-md file has no comments; don't fetch (404s /api/comments).
   // Also hold off until the index loads — until then a deep-linked file's type is
   // unknown, and fetching comments for a non-md file would 404.
-  const comments = useComments(typeKnown && !isNonMd(activeFile) ? activeFile : null);
+  const comments = useComments(typeKnown && !commentsUnavailable ? activeFile : null);
   const user = index?.user ?? "user";
   // Modal-open state (declared up here so the background-scroll-lock effect
   // below can read both; the modals themselves render much further down).
@@ -1272,7 +1275,7 @@ export function App() {
         panels.toggle("nav");
       } else if (matchEvent(e, combo("toggle-sidebar"))) {
         e.preventDefault();
-        panels.toggle("sidebar");
+        if (!commentsUnavailable) panels.toggle("sidebar");
       } else if (matchEvent(e, combo("toggle-edit"))) {
         if (!activeFile || (isNonMd(activeFile) && !isDrawing(activeFile))) return;
         e.preventDefault();
@@ -1281,7 +1284,17 @@ export function App() {
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [panels, pane, tabs, activeFile, toggleEdit, isNonMd, isDrawing, settingsOpen]);
+  }, [
+    panels,
+    pane,
+    tabs,
+    activeFile,
+    toggleEdit,
+    isNonMd,
+    isDrawing,
+    commentsUnavailable,
+    settingsOpen,
+  ]);
 
   // --- Dashboard ------------------------------------------------------------
   // The cross-doc review inbox now lives inside the settings modal (the Comments
@@ -1472,7 +1485,7 @@ export function App() {
   const layoutClass = [
     "layout",
     panels.navCollapsed ? "nav-collapsed" : "",
-    panels.sidebarCollapsed || isDrawing(activeFile) ? "sidebar-collapsed" : "",
+    panels.sidebarCollapsed || commentsUnavailable ? "sidebar-collapsed" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -1537,8 +1550,7 @@ export function App() {
                 : undefined
             }
             navCollapsed={panels.navCollapsed}
-            // Drawings have no text anchors, so the comments surface stays unavailable.
-            sidebarCollapsed={isDrawing(activeFile) ? false : panels.sidebarCollapsed}
+            sidebarCollapsed={panels.sidebarCollapsed}
             onToggleNav={() => panels.toggle("nav")}
             onToggleSidebar={() => panels.toggle("sidebar")}
             editing={!!activeFile && editingFiles.has(activeFile)}
@@ -1652,7 +1664,7 @@ export function App() {
             overlayRoot={overlayRoot}
             hasFile={!!activeFile}
             paintTick={paintTick}
-            collapsed={panels.sidebarCollapsed}
+            collapsed={panels.sidebarCollapsed || commentsUnavailable}
             view={sidebarView}
             onView={setSidebarView}
             pending={pending}
