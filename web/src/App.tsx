@@ -493,12 +493,26 @@ export function App() {
     [toast],
   );
 
-  const onCopyFilename = useCallback(() => {
-    if (activeFile) copy("Copied filename", () => filename(activeFile));
-  }, [activeFile, copy]);
-  const onCopyPath = useCallback(() => {
-    if (activeFile) copy("Copied path", () => absolutePath(root, activeFile));
-  }, [activeFile, root, copy]);
+  // Whether a file offers Copy contents at all. One predicate shared by the
+  // toolbar ⋮ and the tree's row menu, so the two item sets cannot drift apart
+  // for the same file.
+  const hasCopyableContents = useCallback(
+    (file: string | null) =>
+      offersCopyContents({ file, typeKnown, isImage: isImage(file), isPdf: isPdf(file) }),
+    [typeKnown, isImage, isPdf],
+  );
+
+  // Each action takes the file it acts on, because the toolbar and the file tree
+  // disagree about what that is: the toolbar always means the open file, while
+  // the tree means the right-clicked row, which need not be open at all.
+  const onCopyFilename = useCallback(
+    (file: string) => copy("Copied filename", () => filename(file)),
+    [copy],
+  );
+  const onCopyPath = useCallback(
+    (file: string) => copy("Copied path", () => absolutePath(root, file)),
+    [root, copy],
+  );
 
   // Copy contents copies what is ON SCREEN, which is not always what is on disk:
   // the edit buffer before autosave, the editable side of a conflict review, a
@@ -509,47 +523,57 @@ export function App() {
   // Each surface publishes into a ref, read at click time rather than as of the
   // last render: a surface can publish synchronously in the same tick as the
   // click, and React state would still hold the pre-publish value.
-  const onCopyContents = useCallback(() => {
-    if (!activeFile) return;
-    const name = filename(activeFile);
-    let displayed: string | null = null;
-    let saved = true;
-    let read: () => Promise<string>;
-    if (isDrawing(activeFile) || isHtml(activeFile)) {
-      // A snapshot tagged with another file is a reply that outlived a tab
-      // switch — discard it and fall back to a read.
-      const state = surfaceCopyState.current;
-      if (state?.file === activeFile) {
-        displayed = state.raw;
-        saved = state.saved;
+  //
+  // Only the ACTIVE file has a displayed version at all: a tree row that isn't
+  // open renders nowhere, so it is always read from disk at its own type.
+  const onCopyContents = useCallback(
+    (file: string) => {
+      const name = filename(file);
+      const active = file === activeFile;
+      let displayed: string | null = null;
+      let saved = true;
+      let read: () => Promise<string>;
+      if (isDrawing(file) || isHtml(file)) {
+        // A snapshot tagged with another file is a reply that outlived a tab
+        // switch — discard it and fall back to a read.
+        const state = surfaceCopyState.current;
+        if (active && state?.file === file) {
+          displayed = state.raw;
+          saved = state.saved;
+        }
+        read = isDrawing(file)
+          ? () => fetchDrawing(file).then((d) => d.content)
+          : () => fetchHtmlFile(file);
+      } else {
+        const editing = editingFiles.has(file);
+        const editorState = editorCopyState.current;
+        if (active) {
+          displayed = editing ? editorState.raw : viewRawContent;
+          saved = editing ? editorState.saved : true;
+        }
+        read = () => fetchDoc(file).then((d) => d.content);
       }
-      read = isDrawing(activeFile)
-        ? () => fetchDrawing(activeFile).then((d) => d.content)
-        : () => fetchHtmlFile(activeFile);
-    } else {
-      const editing = editingFiles.has(activeFile);
-      const editorState = editorCopyState.current;
-      displayed = editing ? editorState.raw : viewRawContent;
-      saved = editing ? editorState.saved : true;
-      read = () => fetchDoc(activeFile).then((d) => d.content);
-    }
-    // Unsaved beats reload-pending: an unsaved buffer or canvas is the user's
-    // own work, whereas the banner is only about a change they haven't adopted.
-    const suffix = !saved ? " · unsaved" : docChanged ? " · reload pending" : "";
-    copy(
-      "Copied contents",
-      // A surface that hasn't published its source yet — a trust prompt with no
-      // HTML rendered behind it, a drawing mid-load — falls back to a disk read
-      // rather than copying nothing.
-      () => (displayed !== null ? displayed : read()),
-      (value) => `${name} · ${formatSize(byteSize(value))}${suffix}`,
-      () =>
-        toast.show({
-          title: "Copy failed",
-          meta: `Couldn't read ${name}. It may have moved or been deleted.`,
-        }),
-    );
-  }, [activeFile, editingFiles, viewRawContent, docChanged, copy, toast, isDrawing, isHtml]);
+      // Unsaved beats reload-pending: an unsaved buffer or canvas is the user's
+      // own work, whereas the banner is only about a change they haven't adopted.
+      // Both describe the active surface, so neither applies to a disk read.
+      const suffix =
+        displayed === null ? "" : !saved ? " · unsaved" : docChanged ? " · reload pending" : "";
+      copy(
+        "Copied contents",
+        // A surface that hasn't published its source yet — a trust prompt with no
+        // HTML rendered behind it, a drawing mid-load — falls back to a disk read
+        // rather than copying nothing.
+        () => (displayed !== null ? displayed : read()),
+        (value) => `${name} · ${formatSize(byteSize(value))}${suffix}`,
+        () =>
+          toast.show({
+            title: "Copy failed",
+            meta: `Couldn't read ${name}. It may have moved or been deleted.`,
+          }),
+      );
+    },
+    [activeFile, editingFiles, viewRawContent, docChanged, copy, toast, isDrawing, isHtml],
+  );
 
   const onHandoff = useCallback(async () => {
     const session = presence.active;
@@ -1479,6 +1503,10 @@ export function App() {
           onRequestDeleteFile={onRequestDeleteFile}
           onRequestDeleteFolder={onRequestDeleteFolder}
           onRequestMove={onRequestMove}
+          onCopyFilename={onCopyFilename}
+          onCopyPath={onCopyPath}
+          onCopyContents={onCopyContents}
+          offersCopyContents={hasCopyableContents}
         />
       </aside>
 
@@ -1494,20 +1522,17 @@ export function App() {
             session={presence.active}
             onHandoff={onHandoff}
             onEndSession={() => setConfirmEnd(true)}
-            onCopyFilename={onCopyFilename}
-            onCopyPath={onCopyPath}
+            // The toolbar's target is always the open file; the tree binds these
+            // same actions to the right-clicked row instead.
+            onCopyFilename={() => activeFile && onCopyFilename(activeFile)}
+            onCopyPath={() => activeFile && onCopyPath(activeFile)}
             // Every text surface — markdown, drawings, HTML. Images and PDFs
             // never get it (no text to copy). Withheld until the index resolves
             // the type: before that every file looks like markdown, so a
             // deep-linked image would offer a copy that 404s.
             onCopyContents={
-              offersCopyContents({
-                file: activeFile,
-                typeKnown,
-                isImage: isImage(activeFile),
-                isPdf: isPdf(activeFile),
-              })
-                ? onCopyContents
+              activeFile && hasCopyableContents(activeFile)
+                ? () => onCopyContents(activeFile)
                 : undefined
             }
             navCollapsed={panels.navCollapsed}
