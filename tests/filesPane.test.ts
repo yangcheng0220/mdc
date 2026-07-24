@@ -9,6 +9,7 @@ describe("workspaceRootName", () => {
 
   it("ignores trailing separators and preserves a filesystem root", () => {
     expect(workspaceRootName("/home/user/my-workspace/")).toBe("my-workspace");
+    expect(workspaceRootName("C:\\Users\\user\\my-workspace\\")).toBe("my-workspace");
     expect(workspaceRootName("/")).toBe("/");
   });
 });

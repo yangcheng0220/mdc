@@ -59,6 +59,7 @@ import { HtmlSurface } from "./HtmlSurface.js";
 import { ImageView } from "./ImageView.js";
 import { PdfView } from "./PdfView.js";
 import { resolveCommentLines, type CommentAnchorY } from "./commentLines.js";
+import { workspaceRootName } from "./fileTree.js";
 import { combo, matchEvent } from "./keymap.js";
 import { Nav } from "./Nav.js";
 import { computeAnchorContext, enclosingBlockText, renderedOffsetOf, resolveLine } from "./render/createAnchor.js";
@@ -433,7 +434,7 @@ export function App() {
   // a no-op that just keeps the two in sync. It still earns its place for the
   // Vite dev server, which serves index.html without passing through Hono.
   useEffect(() => {
-    const title = root ? `mdc — ${basename(root)}` : "";
+    const title = root ? `mdc — ${workspaceRootName(root)}` : "";
     if (title && document.title !== title) document.title = title;
   }, [root]);
 
