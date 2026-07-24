@@ -8,7 +8,7 @@
 
 import { serve as honoServe } from "@hono/node-server";
 import { existsSync, statSync } from "node:fs";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { currentUserWithSource, type IdentitySource } from "../identity.js";
 import { buildImageIndex, buildIndex, denyFrom } from "./walk.js";
@@ -78,7 +78,7 @@ export async function startServer(
   rootArg: string,
   opts: ServeOptions,
 ): Promise<RunningServer> {
-  const root = isAbsolute(rootArg) ? rootArg : resolve(rootArg);
+  const root = resolve(rootArg);
   if (!existsSync(root) || !statSync(root).isDirectory()) {
     throw new Error(`Not a directory: ${root}`);
   }

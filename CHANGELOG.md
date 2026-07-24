@@ -14,6 +14,9 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 - File-tree context menus now show familiar icons and separate creation actions from deletion.
 - **End session…** has moved into the new ⋮ menu, so the toolbar carries one overflow menu instead of a second kebab that appeared only while an agent was watching.
 
+### Fixed
+- Workspace names stay visible in browser tabs and standalone app windows when the served root path has a trailing slash.
+
 ## [0.6.2] - 2026-07-20
 
 ### Fixed
