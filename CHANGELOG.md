@@ -4,8 +4,11 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-08-08
+
 ### Fixed
-- Saving a file now replaces it in one step, so anything reading that file at the same moment sees either the old version or the new one — never a half-written file. Previously a save emptied the file and refilled it, and a large document left a window where a reader (another editor, an agent, a mini app) could catch it partially written. Applies to markdown saves, drawing saves, mini-app writes, applied suggestions, and the link rewrites that follow a move. A saved file keeps its existing permissions, so a file you had made private stays private.
+- Saving a file now replaces it in one step, so anything reading that file at the same moment sees either the old version or the new one — never a half-written file. Previously a save emptied the file and refilled it, and a large document left a window where a reader (another editor, an agent, a mini app) could catch it partially written. Applies to markdown saves, drawing saves, mini-app writes, applied suggestions, and the link rewrites that follow a move.
+- A saved file keeps its existing permissions, so a file you had made private stays private — including while the save is still being written, so its contents are never briefly readable by other users on the machine.
 
 ## [0.8.0] - 2026-08-04
 
