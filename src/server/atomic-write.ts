@@ -22,7 +22,16 @@
  */
 
 import { randomBytes } from "node:crypto";
-import { closeSync, fsyncSync, openSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  closeSync,
+  fsyncSync,
+  openSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { basename, dirname, join } from "node:path";
 
 /**
@@ -37,8 +46,20 @@ export function writeFileAtomicSync(abs: string, content: string): void {
   // the same temp path, or one would publish the other's half-written bytes.
   const tmp = join(dir, `.${basename(abs)}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`);
 
+  // Replacing the target swaps in a new inode, so the old file's permission
+  // bits go with it. Carry them over, or a private file (0600) silently
+  // widens to the default 0644 on its next save. A file that doesn't exist yet
+  // keeps the normal default-mode behaviour.
+  let mode: number | null = null;
+  try {
+    mode = statSync(abs).mode & 0o777;
+  } catch {
+    mode = null;
+  }
+
   try {
     writeFileSync(tmp, content, "utf8");
+    if (mode !== null) chmodSync(tmp, mode);
     // Flush the staged bytes before publishing, so a crash can't leave the
     // target pointing at a file whose contents never reached the disk.
     const fd = openSync(tmp, "r+");

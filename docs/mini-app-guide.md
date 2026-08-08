@@ -90,7 +90,7 @@ Write a file the app is scoped to write. Returns a fresh `version` for the just-
 
 #### Conflict-safe writes (read-modify-write)
 
-For a **read-modify-write** — read a file, change part of it, write it back — pass the `version` from your read as `baseVersion`. The write then succeeds only if the file still matches; if anything edited it in between (an external editor, the user, another app), it's **rejected** instead of silently clobbering that edit:
+For a **read-modify-write** — read a file, change part of it, write it back — pass the `version` from your read as `baseVersion`. The write then succeeds only if the file still matches; if another writer going through mdc (the user editing in mdc, another app, the CLI) changed it in between, it's **rejected** instead of silently clobbering that edit:
 
     const { content, version } = await window.mdc.readText("tasks/a.md");
     const next = edit(content);
@@ -102,7 +102,7 @@ For a **read-modify-write** — read a file, change part of it, write it back �
 
 The error is your cue to re-read (you get a fresh `version`), re-apply your change to the new content, and write again. Omit `baseVersion` for a **blind write** — a fire-and-forget save, or creating a brand-new file — where there's no prior version to protect. (Passing a `baseVersion` for a file that no longer exists is also a conflict: the base you read was deleted underneath you. To create a new file, pass no `baseVersion`.)
 
-**What `baseVersion` does and doesn't cover.** It coordinates writers that go through mdc — mini apps, the editor, the CLI. A process writing the file directly on disk (a text editor saving, a shell redirect, an agent calling `writeFileSync` itself) doesn't participate in the version check, so it can land between your read and your write and be overwritten. Writes that go through mdc are always published whole, so no reader ever sees a partially written file; but if you need a change to be safe against arbitrary local processes, coordinate outside mdc as well.
+**What `baseVersion` does and doesn't cover.** It coordinates writers that go through mdc — mini apps, the editor, the CLI. A process writing the file directly on disk (a text editor saving, a shell redirect, an agent calling `writeFileSync` itself) doesn't participate in the version check, so it can land between your read and your write and be overwritten. Saving a whole file through mdc — `writeText`, a doc or drawing save — always publishes it in one step, so no reader ever sees a partially written file; but if you need a change to be safe against arbitrary local processes, coordinate outside mdc as well.
 
 #### Writing outside your own folder asks the user first
 

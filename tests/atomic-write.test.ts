@@ -9,12 +9,14 @@
 
 import { fork } from "node:child_process";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -43,6 +45,26 @@ describe("writeFileAtomicSync", () => {
     writeFileSync(target, "old\n");
     writeFileAtomicSync(target, "new\n");
     expect(readFileSync(target, "utf8")).toBe("new\n");
+  });
+
+  it("preserves the existing target's permission bits", () => {
+    // Replacing the target swaps in a new inode; without carrying the mode
+    // across, a 0600 file would silently widen to the default 0644.
+    const target = join(dir, "private.md");
+    writeFileSync(target, "secret\n");
+    chmodSync(target, 0o600);
+    writeFileAtomicSync(target, "still secret\n");
+    expect(statSync(target).mode & 0o777).toBe(0o600);
+    expect(readFileSync(target, "utf8")).toBe("still secret\n");
+  });
+
+  it("keeps a restrictive mode across repeated saves", () => {
+    const target = join(dir, "locked.md");
+    writeFileSync(target, "a\n");
+    chmodSync(target, 0o640);
+    writeFileAtomicSync(target, "b\n");
+    writeFileAtomicSync(target, "c\n");
+    expect(statSync(target).mode & 0o777).toBe(0o640);
   });
 
   it("leaves no temp files behind on success", () => {
