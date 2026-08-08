@@ -21,6 +21,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, extname, join, posix, relative, sep } from "node:path";
+import { writeFileAtomicSync } from "./atomic-write.js";
 import {
   VERSION,
   applySuggestion,
@@ -326,7 +327,7 @@ export function createApp(cfg: ServerConfig): {
       }
     }
     try {
-      writeFileSync(mdPath, b.content, "utf8");
+      writeFileAtomicSync(mdPath, b.content);
     } catch {
       throw new HttpError(500, `failed to write: ${file}`);
     }
@@ -492,7 +493,7 @@ export function createApp(cfg: ServerConfig): {
     }
 
     try {
-      writeFileSync(drawingPath, body.content, "utf8");
+      writeFileAtomicSync(drawingPath, body.content);
     } catch {
       throw new HttpError(500, `failed to write: ${file}`);
     }
@@ -633,8 +634,11 @@ export function createApp(cfg: ServerConfig): {
     }
 
     try {
+      // mkdir first: the atomic write stages its temp file as a sibling of the
+      // target, so the parent directory must exist before staging, not just
+      // before the final rename.
       mkdirSync(dirname(abs), { recursive: true });
-      writeFileSync(abs, body.content, "utf8");
+      writeFileAtomicSync(abs, body.content);
     } catch {
       throw new HttpError(500, `failed to write: ${target}`);
     }
@@ -894,7 +898,7 @@ export function createApp(cfg: ServerConfig): {
       throw new HttpError(409, "suggestion target no longer matches the document");
     }
 
-    writeFileSync(mdPath, applied.content, "utf8");
+    writeFileAtomicSync(mdPath, applied.content);
     appendEntry(scPath, decision);
     return c.json({
       content: applied.content,
@@ -1176,7 +1180,7 @@ export function createApp(cfg: ServerConfig): {
     let rewrittenLinks = 0;
     for (const edit of [...plan.inboundEdits, ...plan.outboundEdits]) {
       try {
-        writeFileSync(join(cfg.root, edit.path), edit.content, "utf8");
+        writeFileAtomicSync(join(cfg.root, edit.path), edit.content);
         rewrittenDocs++;
         rewrittenLinks += edit.rewrites.length;
       } catch {
