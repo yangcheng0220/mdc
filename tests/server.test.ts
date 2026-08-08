@@ -6,7 +6,16 @@
  */
 
 import { serve } from "@hono/node-server";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { fork } from "node:child_process";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -211,6 +220,60 @@ describe("read routes", () => {
     expect(res.status).toBe(200);
     expect(readDoc("doc.md")).toBe("# Forced\n");
   });
+
+  it("PUT /api/md never exposes a partially written doc to a concurrent reader", async () => {
+    // The atomicity guarantee at the route level, not just in the write helper:
+    // a reader watching the file while the handler republishes it must see the
+    // complete old bytes or the complete new bytes, never a truncated middle.
+    // Sized large enough that a truncate-then-stream write would be caught.
+    const SIZE = 12 * 1024 * 1024;
+    // Reuse the doc seeded before createApp, so it is already in the index.
+    const target = join(dir, "doc.md");
+    writeDoc("doc.md", "A".repeat(SIZE));
+
+    const readerSrc = join(dir, "torn-reader.cjs");
+    writeFileSync(
+      readerSrc,
+      `const { readFileSync } = require("node:fs");
+       const target = ${JSON.stringify(target)};
+       const SIZE = ${SIZE};
+       let torn = 0, reads = 0;
+       const deadline = Date.now() + 5000;
+       while (Date.now() < deadline) {
+         try {
+           const b = readFileSync(target, "utf8");
+           reads++;
+           // Whole == right length and a single repeated fill char.
+           if (b.length !== SIZE || b[0] !== b[b.length - 1]) torn++;
+         } catch { /* the rename swap can briefly ENOENT */ }
+       }
+       process.send({ torn, reads });`,
+    );
+
+    const child = fork(readerSrc, { stdio: "ignore" });
+    const observed = new Promise<{ torn: number; reads: number }>((resolve) => {
+      child.on("message", (m: { torn: number; reads: number }) => resolve(m));
+    });
+
+    // Let the reader get into its loop, then republish through the route.
+    await new Promise((r) => setTimeout(r, 100));
+    for (let i = 0; i < 4; i++) {
+      const { version } = (await (await req("/api/md?file=doc.md")).json()) as { version: string };
+      const res = await req("/api/md?file=doc.md", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ content: (i % 2 === 0 ? "B" : "A").repeat(SIZE), baseVersion: version }),
+      });
+      expect(res.status).toBe(200);
+    }
+
+    const { torn, reads } = await observed;
+    child.kill();
+    expect(reads).toBeGreaterThan(0);
+    expect(torn).toBe(0);
+    // No staging artifacts left in the workspace.
+    expect(readdirSync(dir).filter((f) => f.endsWith(".tmp"))).toEqual([]);
+  }, 20000);
 
   it("GET /api/comments returns the sidecar entries", async () => {
     await post("/api/comments?file=doc.md", {
