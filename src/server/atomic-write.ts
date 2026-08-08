@@ -23,7 +23,6 @@
 
 import { randomBytes } from "node:crypto";
 import {
-  chmodSync,
   closeSync,
   fsyncSync,
   openSync,
@@ -49,7 +48,7 @@ export function writeFileAtomicSync(abs: string, content: string): void {
   // Replacing the target swaps in a new inode, so the old file's permission
   // bits go with it. Carry them over, or a private file (0600) silently
   // widens to the default 0644 on its next save. A file that doesn't exist yet
-  // keeps the normal default-mode behaviour.
+  // keeps the normal default-mode behaviour (0666, as constrained by umask).
   let mode: number | null = null;
   try {
     mode = statSync(abs).mode & 0o777;
@@ -58,12 +57,16 @@ export function writeFileAtomicSync(abs: string, content: string): void {
   }
 
   try {
-    writeFileSync(tmp, content, "utf8");
-    if (mode !== null) chmodSync(tmp, mode);
-    // Flush the staged bytes before publishing, so a crash can't leave the
-    // target pointing at a file whose contents never reached the disk.
-    const fd = openSync(tmp, "r+");
+    // Create the staged file at its final mode rather than widening it after
+    // the fact: a large private document written at the default mode and
+    // chmod'd afterwards is briefly world-readable in a searchable directory.
+    // `wx` also makes the unique-name guarantee explicit — staging never
+    // opens a path that already exists.
+    const fd = openSync(tmp, "wx", mode ?? 0o666);
     try {
+      writeFileSync(fd, content, "utf8");
+      // Flush the staged bytes before publishing, so a crash can't leave the
+      // target pointing at a file whose contents never reached the disk.
       fsyncSync(fd);
     } finally {
       closeSync(fd);

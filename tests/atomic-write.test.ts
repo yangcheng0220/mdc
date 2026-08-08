@@ -67,6 +67,47 @@ describe("writeFileAtomicSync", () => {
     expect(statSync(target).mode & 0o777).toBe(0o640);
   });
 
+  it("never stages private content at a broader mode than the target", async () => {
+    // The final target mode is not enough: if the temp file is created at the
+    // default mode and narrowed afterwards, a large private document is briefly
+    // world-readable in a searchable directory. Watch the sibling temp file
+    // itself while a big 0600 save runs.
+    const target = join(dir, "private.md");
+    writeFileSync(target, "seed\n");
+    chmodSync(target, 0o600);
+
+    const watcherSrc = join(dir, "mode-watcher.cjs");
+    writeFileSync(
+      watcherSrc,
+      `const { readdirSync, statSync } = require("node:fs");
+       const dir = ${JSON.stringify(dir)};
+       const seen = new Set();
+       const deadline = Date.now() + 4000;
+       while (Date.now() < deadline) {
+         for (const f of readdirSync(dir)) {
+           if (!f.endsWith(".tmp")) continue;
+           try { seen.add(statSync(dir + "/" + f).mode & 0o777); } catch {}
+         }
+       }
+       process.send({ modes: [...seen] });`,
+    );
+
+    const child = fork(watcherSrc, { stdio: "ignore" });
+    const observed = new Promise<{ modes: number[] }>((resolve) => {
+      child.on("message", (m: { modes: number[] }) => resolve(m));
+    });
+
+    await new Promise((r) => setTimeout(r, 200));
+    // Large enough that staging takes long enough to sample.
+    writeFileAtomicSync(target, "S".repeat(40 * 1024 * 1024));
+
+    const { modes } = await observed;
+    child.kill();
+    // Every mode the staged file was ever seen at must be no broader than 0600.
+    for (const m of modes) expect(m & ~0o600).toBe(0);
+    expect(statSync(target).mode & 0o777).toBe(0o600);
+  }, 20000);
+
   it("leaves no temp files behind on success", () => {
     const target = join(dir, "doc.md");
     writeFileAtomicSync(target, "content\n");
