@@ -1,6 +1,16 @@
 /* Image embeds: fit-to-column, click-to-zoom; broken refs show a placeholder;
    the lightbox is a full-viewport overlay. */
 
+/* Safety net for every image in the doc column, including ones nested in
+   links/tables/etc: never let intrinsic pixel size overflow the column.
+   Unconditional and unscoped to .embed on purpose — external `![](https://...)`
+   images skip the backend resolver and stay inline (see images.ts), so this is
+   the only thing constraining their width. Block layout + margins stay on
+   `.embed` below; this rule only caps size. */
+.doc img {
+  max-width: 100%;
+  height: auto;
+}
 .doc img.embed {
   display: block;
   max-width: 100%;

@@ -4,6 +4,9 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 
 ## [Unreleased]
 
+### Fixed
+- Externally-hosted images (`![](https://...)`) no longer overflow the doc column and cover the comments sidebar. They still render at their natural size inline — small avatars in a line of text stay small — but a large image is now capped to the column width. They also open in the zoom lightbox on click and show the same placeholder as local images when the link is broken.
+
 ## [0.8.1] - 2026-08-08
 
 ### Fixed
