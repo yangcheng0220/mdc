@@ -115,10 +115,15 @@ export function wireImageEmbeds(root: HTMLElement): void {
   );
 
   // Click any image (local embed or external) → open the lightbox at full size.
+  // Linked images (`[![](img)](href)`, common in scraped web content) would
+  // otherwise both zoom and follow the link — external hrefs render with
+  // target="_blank", so the click opened a tab alongside the lightbox. Zoom
+  // wins: suppress the navigation so an image click always means "look closer".
   root.addEventListener("click", (e) => {
     const target = e.target as HTMLElement;
     const img = target.closest("img.img-behaviors");
     if (img instanceof HTMLImageElement) {
+      e.preventDefault();
       openImageLightbox(img.src, img.dataset.ref || img.alt || "");
     }
   });
