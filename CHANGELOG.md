@@ -9,6 +9,10 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 ### Changed
 
 ### Fixed
+
+## [0.9.1] - 2026-10-25
+
+### Fixed
 - Malformed Markdown links no longer stall comment anchor recovery.
 - Workspace launchers accept only HTTP/HTTPS URLs and open Windows URLs without a command shell.
 
