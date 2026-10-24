@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # create the GitHub Release
+      id-token: write # authenticate to npm through the scoped trusted publisher
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -17,8 +18,8 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
-          cache: npm
-          registry-url: https://registry.npmjs.org # writes the .npmrc npm publish reads the token from
+          package-manager-cache: false
+          registry-url: https://registry.npmjs.org
 
       # The tag is the release trigger, but package.json is what npm publishes as.
       # Refuse to publish if they disagree — a mismatched tag ships the wrong version.
@@ -36,10 +37,8 @@ jobs:
       # Build before publish — a red build must never reach npm.
       - run: npm run build
 
-      - name: Publish to npm
+      - name: Publish to npm with trusted publishing
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       # Release notes are the matching CHANGELOG section verbatim — no commit scraping.
       - name: Create GitHub Release
