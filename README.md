@@ -42,7 +42,7 @@ Point mdc at a folder and it renders your whole workspace in the browser — mar
 
 ## Quick start
 
-Requires Node 20+.
+Requires Node 22 or newer. Use the latest security patch on Node 22 or Node 24 LTS.
 
 ```sh
 # Run without installing (./my-docs is the folder to serve)
