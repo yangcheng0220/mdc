@@ -30,7 +30,7 @@ function fakeSpawnSync(status: number) {
   return (() => ({ status })) as unknown as LaunchEnv["spawnSyncFn"];
 }
 
-const URL = "http://localhost:8000";
+const URL = "http://localhost:8000/";
 
 describe("openWorkspaceWindow", () => {
   it("launches a Chrome app window when opted in and Chrome is installed", async () => {
@@ -40,7 +40,7 @@ describe("openWorkspaceWindow", () => {
       spawnFn: fakeSpawn(calls),
       spawnSyncFn: fakeSpawnSync(0),
     });
-    expect(calls).toEqual([["open", "-na", "Google Chrome", "--args", `--app=${URL}`]]);
+    expect(calls).toEqual([["/usr/bin/open", "-na", "Google Chrome", "--args", `--app=${URL}`]]);
   });
 
   it("falls back to the default browser when Chrome is not installed", async () => {
@@ -50,7 +50,7 @@ describe("openWorkspaceWindow", () => {
       spawnFn: fakeSpawn(calls),
       spawnSyncFn: fakeSpawnSync(1),
     });
-    expect(calls).toEqual([["open", URL]]);
+    expect(calls).toEqual([["/usr/bin/open", URL]]);
   });
 
   it("ignores the opt-in off macOS", async () => {
@@ -70,7 +70,7 @@ describe("openWorkspaceWindow", () => {
       spawnFn: fakeSpawn(calls),
       spawnSyncFn: fakeSpawnSync(0),
     });
-    expect(calls).toEqual([["open", URL]]);
+    expect(calls).toEqual([["/usr/bin/open", URL]]);
   });
 
   it("falls back to the default browser when the app-window launch fails", async () => {
@@ -82,9 +82,28 @@ describe("openWorkspaceWindow", () => {
       spawnSyncFn: fakeSpawnSync(0),
     });
     expect(calls).toEqual([
-      ["open", "-na", "Google Chrome", "--args", `--app=${URL}`],
-      ["open", URL],
+      ["/usr/bin/open", "-na", "Google Chrome", "--args", `--app=${URL}`],
+      ["/usr/bin/open", URL],
     ]);
+  });
+});
+
+describe("launcher URL safety", () => {
+  it("passes a Windows URL as one data argument without cmd.exe", async () => {
+    const calls: string[][] = [];
+    const url = "https://example.test/?q=a&other=%25TEMP%25";
+    await openWorkspaceWindow(url, false, { platform: "win32", spawnFn: fakeSpawn(calls) });
+    expect(calls).toEqual([["rundll32.exe", "url.dll,FileProtocolHandler", url]]);
+  });
+
+  it.each(["darwin", "win32", "linux"] as const)("rejects non-web URLs on %s before spawning", async (platform) => {
+    const calls: string[][] = [];
+    for (const url of ["file:///tmp/example", "javascript:alert(1)", "data:text/plain,test", "relative/path"]) {
+      await expect(openWorkspaceWindow(url, true, {
+        platform, spawnFn: fakeSpawn(calls), spawnSyncFn: fakeSpawnSync(0),
+      })).rejects.toThrow();
+    }
+    expect(calls).toEqual([]);
   });
 });
 

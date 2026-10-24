@@ -43,14 +43,15 @@ export function readAppWindowConfig(root: string): boolean {
 /** Spawn the OS's default URL opener (browser) for `url`. */
 async function openInBrowser(url: string, env: LaunchEnv = {}): Promise<void> {
   const spawnFn = env.spawnFn ?? spawn;
-  const opener =
-    (env.platform ?? process.platform) === "darwin"
-      ? ["open", url]
-      : (env.platform ?? process.platform) === "win32"
-        ? ["cmd", "/c", "start", "", url]
-        : ["xdg-open", url];
+  const platform = env.platform ?? process.platform;
   await new Promise<void>((res, rej) => {
-    const p = spawnFn(opener[0]!, opener.slice(1), { stdio: "ignore" });
+    // Keep executable names literal and pass the URL as data, never through cmd.exe.
+    const options = { stdio: "ignore" } as const;
+    const p = platform === "darwin"
+      ? spawnFn("/usr/bin/open", [url], options)
+      : platform === "win32"
+        ? spawnFn("rundll32.exe", ["url.dll,FileProtocolHandler", url], options)
+        : spawnFn("xdg-open", [url], options);
     p.on("error", rej);
     p.on("exit", (code) => (code === 0 ? res() : rej(new Error(`exit ${code}`))));
   });
@@ -67,15 +68,20 @@ export async function openWorkspaceWindow(
   appWindow: boolean,
   env: LaunchEnv = {},
 ): Promise<void> {
+  const parsed = new URL(url);
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("workspace URLs must use HTTP or HTTPS");
+  }
+  url = parsed.href;
   const platform = env.platform ?? process.platform;
   const spawnSyncFn = env.spawnSyncFn ?? spawnSync;
   if (appWindow && platform === "darwin") {
     const chromeInstalled =
-      spawnSyncFn("open", ["-Ra", "Google Chrome"], { stdio: "ignore" }).status === 0;
+      spawnSyncFn("/usr/bin/open", ["-Ra", "Google Chrome"], { stdio: "ignore" }).status === 0;
     if (chromeInstalled) {
       const spawnFn = env.spawnFn ?? spawn;
       const ok = await new Promise<boolean>((res) => {
-        const p = spawnFn("open", ["-na", "Google Chrome", "--args", `--app=${url}`], {
+        const p = spawnFn("/usr/bin/open", ["-na", "Google Chrome", "--args", `--app=${url}`], {
           stdio: "ignore",
         });
         p.on("error", () => res(false));

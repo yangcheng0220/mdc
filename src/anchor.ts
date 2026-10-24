@@ -95,19 +95,18 @@ export function lineOfOffset(text: string, offset: number): number {
 
 /** Strip inline markdown (links, bold, italics, code) from a quote. */
 export function stripInlineMd(s: string): string {
-  return s
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-    .replace(/\*\*([^*]+)\*\*/g, "$1")
+  return replaceMapped(s, "links", 1, false)
+    .text.replace(/\*\*([^*]+)\*\*/g, "$1")
     .replace(/(^|[^*])\*([^*]+)\*/g, "$1$2")
     .replace(/`([^`]+)`/g, "$1")
     .replace(/(^|[^_])_([^_]+)_/g, "$1$2");
 }
 
-/** The marker forms stripMdMapped removes: [regex, length of the marker
- *  prefix before the kept capture group]. A regex either has exactly ONE
+/** The marker forms stripMdMapped removes: [regex or linear link scanner,
+ *  length of the marker prefix before kept content]. A regex has exactly ONE
  *  capture group (kept content) at a fixed offset from the match start, or no
  *  group at all (the whole match is deleted). */
-const MD_STRIP_PATTERNS: Array<[RegExp, number]> = [
+const MD_STRIP_PATTERNS: Array<[RegExp | "links", number]> = [
   // Line-leading BLOCK markers first (checkbox before plain list — it's a
   // superset). Rendered text never contains them, and a quote that spans two
   // blocks joins them with just a newline — so the raw side must drop the
@@ -121,20 +120,55 @@ const MD_STRIP_PATTERNS: Array<[RegExp, number]> = [
   // line here, and a multi-line class would pair a lone marker (the _ in a
   // snake_case word) with an unrelated one far down the doc, mangling
   // everything between.
-  [/\[([^\]\n]+)\]\([^)\n]*\)/g, 1], // [text](url) → text
+  ["links", 1], // [text](url) → text, scanned without regex backtracking
   [/\*\*([^*\n]+)\*\*/g, 2],
   [/(?<!\*)\*([^*\n]+)\*/g, 1],
   [/`([^`\n]+)`/g, 1],
   [/(?<!_)_([^_\n]+)_/g, 1],
 ];
 
+/** Match the existing simple link syntax in one forward pass. Failed labels
+ * share their first closing bracket, so skip that whole span rather than
+ * retrying from every nested opening bracket. Full-text passes stay on a line. */
+function* linkMatches(s: string, singleLine: boolean) {
+  let base = 0;
+  do {
+    const newline = singleLine ? s.indexOf("\n", base) : -1;
+    const end = newline < 0 ? s.length : newline;
+    const line = s.slice(base, end);
+    let cursor = 0;
+    while (cursor < line.length) {
+      const start = line.indexOf("[", cursor);
+      if (start < 0) break;
+      const close = line.indexOf("]", start + 1);
+      if (close < 0) break;
+      cursor = close + 1;
+      if (close === start + 1 || line[close + 1] !== "(") continue;
+      const finish = line.indexOf(")", close + 2);
+      if (finish < 0) break;
+      yield {
+        index: base + start,
+        0: line.slice(start, finish + 1),
+        1: line.slice(start + 1, close),
+      };
+      cursor = finish + 1;
+    }
+    base = end + 1;
+  } while (singleLine && base < s.length);
+}
+
 /** One marker-unwrapping pass: replace each match of `re` with its capture
  *  group, tracking map[outIdx] = originalIdx (with an end sentinel). */
-function replaceMapped(s: string, re: RegExp, prefixLen: number): { text: string; map: number[] } {
+function replaceMapped(
+  s: string,
+  re: RegExp | "links",
+  prefixLen: number,
+  singleLine = true,
+): { text: string; map: number[] } {
   let out = "";
   const map: number[] = [];
   let last = 0;
-  for (const m of s.matchAll(re)) {
+  for (const m of re === "links" ? linkMatches(s, singleLine) : s.matchAll(re)) {
     const start = m.index;
     for (let i = last; i < start; i++) {
       map.push(i);
