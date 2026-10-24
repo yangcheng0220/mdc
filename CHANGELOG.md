@@ -4,6 +4,14 @@ All notable user-facing changes to mdc. Format loosely follows [Keep a Changelog
 
 ## [Unreleased]
 
+### Added
+
+### Changed
+
+### Fixed
+
+## [0.9.0] - 2026-10-24
+
 ### Changed
 - Requires Node 22 or newer; Node 20 is no longer supported.
 
