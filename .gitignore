@@ -8,3 +8,6 @@ web/dist-dev/
 
 # margin-comment sidecars — local review artifacts, never shipped
 *.comments.jsonl
+
+# Generated Windows launcher smoke-test bundle
+/.launch-smoke/
