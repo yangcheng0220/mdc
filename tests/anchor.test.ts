@@ -277,6 +277,41 @@ describe("stripMdMapped", () => {
   });
 });
 
+describe("link stripping safety", () => {
+  it.each([
+    ["[x](url)", "x"],
+    ["[[x](url)", "[x"],
+    ["[a](u)[b](v)", "ab"],
+    ["[](x) [ok](u)", "[](x) ok"],
+    ["[bad] no [ok](u)", "[bad] no ok"],
+    ["[a](u[bad](v))", "a)"],
+  ])("keeps the existing simple-link interpretation for %s", (raw, expected) => {
+    expect(stripInlineMd(raw)).toBe(expected);
+    // The mapped form repeats passes; these cases introduce no new valid link.
+    const { text, map } = stripMdMapped(raw);
+    expect(text).toBe(expected);
+    for (let i = 0; i < text.length; i++) expect(raw[map[i]!]).toBe(text[i]);
+    expect(map[text.length]).toBe(raw.length);
+  });
+
+  it("keeps full-document links within their line", () => {
+    for (const raw of ["[a\nb](url)", "[a](u\nv)"]) {
+      expect(stripMdMapped(raw).text).toBe(raw);
+    }
+    expect(stripInlineMd("[a\nb](url)")).toBe("a\nb");
+  });
+
+  it("handles a long unfinished link without repeated scans", () => {
+    const raw = "[\\".repeat(100_000);
+    const start = performance.now();
+    expect(stripInlineMd(raw)).toBe(raw);
+    expect(stripMdMapped(raw).text).toBe(raw);
+    // Generous budget: the linear implementation takes tens of milliseconds;
+    // retrying the old link regex at every bracket takes many seconds.
+    expect(performance.now() - start).toBeLessThan(2000);
+  });
+});
+
 describe("findAnchorMatch — quotes spanning block boundaries", () => {
   it("matches a quote crossing from one list item into the next", () => {
     const raw =

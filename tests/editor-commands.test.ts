@@ -30,11 +30,12 @@ function apply(cmd: MarkdownCommand, marked: string) {
   let to: number;
   if (marked.includes("[") && marked.includes("]")) {
     from = marked.indexOf("[");
-    to = marked.indexOf("]") - 1;
-    doc = marked.replace("[", "").replace("]", "");
+    const close = marked.indexOf("]");
+    to = close - 1;
+    doc = marked.slice(0, from) + marked.slice(from + 1, close) + marked.slice(close + 1);
   } else {
     from = to = marked.indexOf("|");
-    doc = marked.replace("|", "");
+    doc = marked.slice(0, from) + marked.slice(from + 1);
   }
   const state = EditorState.create({ doc, selection: { anchor: from, head: to } });
   const spec = cmd.build(state);
