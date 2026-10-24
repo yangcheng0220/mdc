@@ -7,6 +7,8 @@ description: Prepare an mdc release — bump the version, promote the changelog,
 
 mdc ships to npm on a **pushed git tag**. This skill prepares and tags a release; GitHub Actions (`.github/workflows/release.yml`) does the actual publish once the tag lands.
 
+The npm package must trust GitHub owner `yangcheng0220`, repository `mdc`, workflow filename `release.yml`, with direct publishing allowed. The workflow uses Node 24 (npm >=11.5.1), `id-token: write`, and OIDC; it does not use `NPM_TOKEN`. Keep release caching disabled. Configure the npm connection before tagging, and verify it with a successful publish before removing any old token.
+
 Tag a commit that's on `main` and green — CI (`ci.yml`) runs the sign-off on every push to `main`, so a released commit is already verified.
 
 ## Flow
@@ -39,3 +41,5 @@ Watch the release run (`gh run watch`, or the repo's Actions tab). When it's gre
 - The GitHub Release exists with the changelog section as its notes.
 
 If the run fails on the version-match validation, the tag and `package.json` disagree — delete the tag (`git push origin :vx.y.z` and `git tag -d vx.y.z`), fix the mismatch, and re-tag.
+
+If publishing fails on authorization, check the npm trusted publisher binding and workflow OIDC permission before retrying. Rerunning a tag workflow uses the workflow from that tagged commit, so a later main-branch workflow fix does not change the old run. Never move a published version tag. For an unpublished failed release, first verify the version is absent from npm and no GitHub Release exists; then replace its failed tag with the green fixed commit at the same package version as part of the authorized release recovery.
